@@ -1,0 +1,23 @@
+[
+ {
+  "op": "append_text",
+  "scope": "domain",
+  "file": "tool_guidance.md",
+  "content": "DART navigation: to check for [기재정정]/[정정] versions or later filings, call list_docs once for the company. Do not search filing titles, because search matches body text, not titles. When you search a line item (영업이익, 매출액), filter by company and immediately read the returned doc_id+offset that belongs to the chosen filing. Never send the same search twice. If a search fails, read further into the chosen filing (offset +1400) to reach the 연결 손익계산서 or 요약재무정보."
+ },
+ {
+  "op": "write_skill",
+  "scope": "domain",
+  "name": "dart_figure_recipe",
+  "when": [
+   "매출액",
+   "영업이익",
+   "순이익",
+   "비중",
+   "억원",
+   "연결"
+  ],
+  "summary": "Fixed recipe to locate, extract and convert a consolidated figure from the latest final DART filing",
+  "content": "1. list_docs for the company. Pick the 사업보고서 for the asked fiscal year. If a [기재정정]/[정정] version of it exists, use the latest-dated one; otherwise the original is final. 2. search the line item with the company filter, then read the hit offset inside that doc. If there is no hit, read onward from the cover in steps until you reach the 연결 손익계산서. 3. upsert the figure with its label, the 당기 column, the sign (△ or () means negative), the unit line (단위) and the span ref. 4. compute the 억원 conversion from that ref (백만원/100, 천원/100000, 원/1e8) and round as asked. 5. finalize right after the compute succeeds."
+ }
+]

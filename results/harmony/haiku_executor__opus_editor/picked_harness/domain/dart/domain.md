@@ -1,0 +1,2 @@
+The corpus holds Korean DART-style filings for many companies: 사업보고서 (annual), 분기보고서 and 반기보고서 (quarterly), and other disclosures. Financial tables state their unit in a line such as "(단위: 백만원)". 1억원 = 100 백만원 = 100,000 천원. A minus figure is printed with △.
+Unit rule: in every numeric statement, record the source unit from the table's (단위: …) line. To answer in 억원: from 백만원 divide by 100 (never 1000); from 천원 first divide by 1000 to get 백만원, then by 100; from 원 first convert to 백만원. Before final, recheck magnitude: 억원 has two fewer digits than 백만원.

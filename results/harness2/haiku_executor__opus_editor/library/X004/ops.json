@@ -1,0 +1,14 @@
+[
+ {
+  "op": "append_text",
+  "scope": "domain",
+  "file": "domain.md",
+  "content": "Final-filing rule: use ONE list_docs call. Among filings for the asked 사업연도/period, the latest-submitted wins ([기재정정]/[정정] beats the original; 잠정 never counts). Once a value is admitted from that filing, the correction check is satisfied: mark it resolved and finalize. Do not re-list or re-search. Statement basis: for 연결 당기순이익, take the total 당기순이익(손실) line of the consolidated statement (연결손익계산서 or 요약연결재무정보 of the same final filing), not the 지배기업 소유주지분 line and not the 별도 statement."
+ },
+ {
+  "op": "set_gate",
+  "scope": "domain",
+  "key": "correction_check",
+  "value": "true"
+ }
+]

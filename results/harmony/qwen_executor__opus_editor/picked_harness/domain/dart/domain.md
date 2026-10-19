@@ -1,0 +1,1 @@
+The corpus holds Korean DART-style filings for many companies: 사업보고서 (annual), 분기보고서 and 반기보고서 (quarterly), and other disclosures. Financial tables state their unit in a line such as "(단위: 백만원)". 1억원 = 100 백만원 = 100,000 천원. A minus figure is printed with △.

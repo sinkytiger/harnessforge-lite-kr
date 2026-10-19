@@ -210,11 +210,15 @@ def figure_systems(groups: list[tuple[str, list[dict]]], path: Path) -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     plt.rcParams["font.family"] = ["Malgun Gothic", "DejaVu Sans"]
-    labels = []
+    seen = []
     for _, rows in groups:
         for r in rows:
-            if r["label"] not in labels:
-                labels.append(r["label"])
+            if r["label"] not in seen:
+                seen.append(r["label"])
+    order = ["Direct RAG", "Tools + notes", "LongHarness seed H0", "LongHarness seed H0, second run",
+             "Harmony pick H†", "Harmony pick H†, second run", "H† + Harness² step"]
+    rank = lambda lab: next((i for i, o in enumerate(order) if lab.startswith(o) and not (o == "Harmony pick H†" and "second run" in lab)), len(order))  # noqa: E731
+    labels = sorted(seen, key=lambda lab: (rank(lab), seen.index(lab)))
     fig, ax = plt.subplots(figsize=(8.2, 0.62 * len(labels) + 1.6), dpi=200)
     fig.patch.set_facecolor(SURFACE)
     ax.set_facecolor(SURFACE)
@@ -275,7 +279,7 @@ def figure_harmony(runs: list[tuple[str, dict]], path: Path) -> None:
                    marker="D", label="seed H0")
         for x, y, m in pts:
             if m["hash"] == h["best"] and m["gen"] > 0:
-                ax.annotate("H† (picked)", (x, y), xytext=(7, -13), textcoords="offset points", fontsize=8, color=INK)
+                ax.annotate("H† (picked)", (x, y), xytext=(6, 6), textcoords="offset points", fontsize=8, color=INK)
         ax.set_ylim(-4, 108)
         ax.grid(True, color=GRID, linewidth=0.8)
         ax.set_axisbelow(True)

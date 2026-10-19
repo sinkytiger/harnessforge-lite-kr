@@ -1,0 +1,26 @@
+[
+ {
+  "op": "set_gate",
+  "scope": "general",
+  "key": "block_repeats",
+  "value": "true"
+ },
+ {
+  "op": "append_text",
+  "scope": "general",
+  "file": "system.md",
+  "content": "Discipline: never repeat an action whose result you already have (same list_docs, same search); reuse the earlier result from your notes. Before upserting a number, check that the table's heading matches EVERY qualifier in the question (entity, basis such as consolidated/separate, period, cumulative vs. quarter, unit). If any qualifier does not match, do not upsert; find the right table. When an unresolved item is settled or no longer matters, remove it."
+ },
+ {
+  "op": "append_text",
+  "scope": "domain",
+  "file": "domain.md",
+  "content": "Final-filing rule: call list_docs ONCE. From it, pick the filings for the asked 사업연도 and period. The final confirmed source is the latest-submitted one: [기재정정] or [정정] beats the original, and 잠정 (preliminary) disclosures never count. If a correction exists for that period, read it. If the list shows none, the original is final, so do not re-list or re-search. Basis rule: before upserting, confirm the statement title says 연결 (not 별도) when the question asks 연결. Take the cumulative column (누적, e.g. 1~6월), not the 3-month column. Name the basis and period in the statement."
+ },
+ {
+  "op": "set_gate",
+  "scope": "domain",
+  "key": "correction_check",
+  "value": "true"
+ }
+]

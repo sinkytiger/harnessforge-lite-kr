@@ -1,0 +1,23 @@
+[
+ {
+  "op": "write_skill",
+  "scope": "domain",
+  "name": "dart_figure_recipe",
+  "when": [
+   "매출액",
+   "영업이익",
+   "순이익",
+   "비중",
+   "억원",
+   "연결"
+  ],
+  "summary": "Fixed recipe to locate, extract and convert a consolidated figure from the latest final DART filing",
+  "content": "1. list_docs for the company. If a [정정] or later-dated report for the same period exists, use the latest one. Do not use 잠정 or 예비 figures. 2. Read the 연결 손익계산서 (consolidated income statement), not the 별도 (standalone) one. Use the 당기 column for the asked fiscal year. 3. Copy the unit line (단위: 원/천원/백만원) that sits above the table. 4. Convert exactly once: 백만원÷100, 천원÷100000, 원÷100000000. Treat △ as minus. Round as asked. 5. Right after the compute, upsert one statement with the converted value, citing the S# span that shows both the figure and the unit. Then give the final answer. Never repeat the same compute."
+ },
+ {
+  "op": "set_gate",
+  "scope": "domain",
+  "key": "correction_check",
+  "value": "true"
+ }
+]

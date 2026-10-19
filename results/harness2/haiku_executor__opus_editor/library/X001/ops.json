@@ -1,0 +1,14 @@
+[
+ {
+  "op": "append_text",
+  "scope": "domain",
+  "file": "domain.md",
+  "content": "Final-filing rule: from ONE list_docs call, take the filings for the asked 사업연도 and period. The final confirmed source is the latest-submitted one ([기재정정] or [정정] beats the original; 잠정/preliminary disclosures never count). If a correction filing shows 정정 전/정정 후, use 정정 후. Once you have read a value from the latest-dated filing, do not re-run list_docs or search for further corrections; compute the unit conversion and answer."
+ },
+ {
+  "op": "set_gate",
+  "scope": "domain",
+  "key": "correction_check",
+  "value": "true"
+ }
+]

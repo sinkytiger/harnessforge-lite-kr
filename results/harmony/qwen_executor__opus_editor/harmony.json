@@ -1,0 +1,425 @@
+{
+ "weights": [
+  [
+   0.2,
+   0.8
+  ],
+  [
+   0.4,
+   0.6
+  ],
+  [
+   0.6000000000000001,
+   0.3999999999999999
+  ],
+  [
+   0.8,
+   0.19999999999999996
+  ]
+ ],
+ "z": [
+  0.125,
+  0.63305625
+ ],
+ "archive": [
+  {
+   "hash": "e55373a1f210",
+   "f_acc": 0.0,
+   "f_eff": 0.60740703125,
+   "gen": 0,
+   "sub": null,
+   "parent": null,
+   "diagnosis": {},
+   "ops": [],
+   "applied": [],
+   "metrics": {
+    "n": 16,
+    "accuracy": 0.0,
+    "accepted": 0.1875,
+    "mean_tokens": 31407.4375,
+    "mean_turns": 14.6875,
+    "efficiency": 0.60740703125,
+    "traps": {
+     "unit_slip": 1
+    },
+    "seconds": 1497.8899999999999
+   }
+  },
+  {
+   "hash": "ca8b4cfc7542",
+   "f_acc": 0.0625,
+   "f_eff": 0.63305625,
+   "gen": 1,
+   "sub": 0,
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent gets stuck repeating the same search query verbatim (123 repeated searches, 13/16 episodes with no final). In S02 it never reads at all and issues one identical search 16 times. The same pattern shows up after a few reads in S03 and S05. The block_repeats gate is available but switched off, so nothing tells the agent that a repeat is useless. The system prompt also never requires it to move from search to read, then upsert, then answer. Every episode burns its full turn budget without upserting any evidence, so accuracy is 0 and token cost is high.",
+    "hypothesis": "Two changes should break the loop and turn more episodes into accepted, correct answers at lower turn and token cost: enable the block_repeats gate, and add a short imperative rule to system.md. The rule: after a search, always read the top result's doc_id and offset instead of searching again; never repeat an identical query; if a query was already issued, read an unread result or change the query terms (for example a table name such as 연결 손익계산서); once a value is read, upsert it with its span ref and give the final answer.",
+    "component": "logic",
+    "scope": "general",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "set_gate",
+     "scope": "general",
+     "key": "block_repeats",
+     "value": "true"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "system.md",
+     "content": "\n\nProgress rule (mandatory):\n- After any search, your NEXT action is read on the best unread result (its doc_id + offset). Never search twice in a row with the same query.\n- If a query was already issued, do not reissue it. Read an unread result from it, or change the terms (e.g. name the table or section: 연결 손익계산서, 부문 정보), or use list_docs.\n- Once a needed value is read, upsert it with its S# ref. When all needed facts are active evidence, compute if needed, then call final. Do not run out of turns without calling final."
+    }
+   ],
+   "applied": [
+    "set general gate block_repeats=True",
+    "append 525 chars to general/system.md"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 0.0625,
+    "accepted": 0.3125,
+    "mean_tokens": 29355.5,
+    "mean_turns": 13.625,
+    "efficiency": 0.63305625,
+    "traps": {
+     "separate_basis": 1,
+     "unit_slip": 1
+    },
+    "seconds": 1337.74
+   }
+  },
+  {
+   "hash": "fbfb18783fb9",
+   "f_acc": 0.0,
+   "f_eff": 0.5957250000000001,
+   "gen": 1,
+   "sub": 1,
+   "parent": "ca8b4cfc7542",
+   "diagnosis": {
+    "diagnosis": "The agent does not follow the evidence pipeline the tools require. After one search it keeps re-issuing the identical query: 86 repeated searches and 109 block_repeats rejections. It never turns search results into a read using the doc_id and offset they give. Even when it does read (S03, S04), it never upserts, so no E# evidence ids exist. Its final answers therefore fail require_refs or never arrive (11 no_final), which drives accuracy to 0.06. The gate's rejection message is not translated into a concrete next action, and tool_guidance does not spell out the chain from search to read to upsert to final.",
+    "hypothesis": "Rewriting tool_guidance.md as an explicit action chain should push the agent to read and upsert instead of looping, producing more accepted, correct finals in fewer turns. The chain: search returns doc_id@offset, so read one of those next (never repeat the same query); read returns S#; upsert the value with refs [S#] to get E#; final must cite E# ids. Two recovery rules should also be added: if a search or read is blocked, read a different listed offset or change the query terms; once the needed value is in an S span, upsert it immediately. Raising snippet_chars should give the agent enough snippet text to pick the right offset.",
+    "component": "tools",
+    "scope": "general",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "replace_text",
+     "scope": "general",
+     "file": "tool_guidance.md",
+     "old": "Add \"unresolved\": [\"...\"] to any action to update your list of missing facts.",
+     "new": "Add \"unresolved\": [\"...\"] to any action to update your list of missing facts.\n\nRequired chain (follow in order):\n1. search -> results list doc_id + offset. Your NEXT action must be read on one of them. Never re-run the same query.\n2. read -> returns span id S#. If the needed value is in the text, upsert it NOW with refs [\"S#\"] and its unit; this creates evidence id E#.\n3. compute if a derived value is needed (cite E# ids).\n4. final must cite E# ids in refs, never S# and never an empty list.\nRecovery: if an action is REJECTED or blocked, do not repeat it. Instead read a different doc_id/offset from earlier results, or search with changed terms (another item name, a doc type such as 사업보고서, or list_docs). If the read text lacks the value, read the same doc at a later offset."
+    },
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "snippet_chars",
+     "value": "240"
+    }
+   ],
+   "applied": [
+    "replace text in general/tool_guidance.md",
+    "set general config snippet_chars=240"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 0.0,
+    "accepted": 0.4375,
+    "mean_tokens": 32342.0,
+    "mean_turns": 13.125,
+    "efficiency": 0.5957250000000001,
+    "traps": {
+     "unit_slip": 2
+    },
+    "seconds": 4581.93
+   }
+  },
+  {
+   "hash": "82dc11db099d",
+   "f_acc": 0.125,
+   "f_eff": 0.5703390625,
+   "gen": 1,
+   "sub": 2,
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "Agents loop on one identical search instead of reading. Even when they do read, they never upsert or compute. In S02 the agent re-searched 15 times and never read. In S05 it read the corrected [기재정정] annual report six times but extracted nothing. Logic and tool-guidance fixes for the loop are already taken. The missing piece here is domain navigation knowledge. The agent does not know where DART filings put consolidated figures (요약재무정보, 연결 포괄손익계산서, 매출실적/부문 tables). It also does not know to pick the latest final (정정) filing via list_docs or how to turn a 백만원/천원 figure with △ into 억원. So it cannot recognise a found value and keeps searching for it.",
+    "hypothesis": "Add a domain skill triggered by financial-figure keywords (매출액, 영업이익, 비중, 억원, 연결). It should spell out a fixed recipe. First call list_docs and choose the latest 사업보고서 including [기재정정]. Then search section titles like '연결 포괄손익계산서', '요약재무정보' or '매출실적', not the question text, and read the hit. Upsert the raw cell together with the table's 단위 line and △ sign. Finally use compute for the unit conversion or the share ratio before answering. This should lead to read→upsert→compute→final, raising accepted, correct answers and also cutting wasted turns.",
+    "component": "skills",
+    "scope": "domain",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "domain",
+     "name": "dart_figure_recipe",
+     "when": [
+      "매출액",
+      "영업이익",
+      "순이익",
+      "비중",
+      "억원",
+      "연결"
+     ],
+     "summary": "Fixed recipe to locate, extract and convert a consolidated figure from the latest final DART filing",
+     "content": "1. Call list_docs for the company. Pick the latest 사업보고서 for the asked year. If a [기재정정] version exists, use it, because it is the final figure.\n2. Search that filing using a section title, not the question text: '요약재무정보', '연결 포괄손익계산서', or '매출실적' / '부문별 매출' for segment shares. Never repeat a query. If the results do not change, read the top hit's doc_id and offset.\n3. Read the hit. Find the column for the asked year and the table's (단위: ...) line.\n4. Upsert the raw cell immediately. Include its unit and keep △ as a minus sign.\n5. Use compute for every conversion: 억원 = 백만원/100 = 천원/100000. Share % = segment / total * 100. Round as the question asks.\n6. Answer with the computed number only."
+    }
+   ],
+   "applied": [
+    "write skill domain/dart_figure_recipe (when: 매출액, 영업이익, 순이익, 비중, 억원, 연결)"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 0.125,
+    "accepted": 0.375,
+    "mean_tokens": 34372.875,
+    "mean_turns": 13.9375,
+    "efficiency": 0.5703390625,
+    "traps": {
+     "unit_slip": 2
+    },
+    "seconds": 1246.32
+   }
+  },
+  {
+   "hash": "e59796b63bba",
+   "f_acc": 0.0625,
+   "f_eff": 0.54940703125,
+   "gen": 1,
+   "sub": 3,
+   "parent": "82dc11db099d",
+   "diagnosis": {
+    "diagnosis": "The agent burns its turn budget in loops. It repeats identical searches (72 in total, for example the same query five times in a row) and re-reads the same offsets. It never upserts a statement: every episode shows upserts=0 and computes=0, and the compute calls cite nonexistent ids like E1. Because history_window=3, it loses track of what it has already searched and read. With no stored evidence it cannot compute or finalize, which explains no_final=10, about 14 turns and 34k tokens per episode, and accuracy of 0.12. The one always-on skill covers only table headers, not this evidence workflow.",
+    "hypothesis": "Add a short general skill that is always loaded (when: \"*\"), for example evidence_ledger, with four rules. (1) After every read, if the span holds a needed number, upsert it at once with its unit and the S# ref, before any further search. (2) Never repeat a search query already issued. If a search returns the same results, read a new offset or change the query terms. (3) compute may only reference ids returned by upsert, never invented ones like E1. (4) Once all inputs are upserted, compute and then answer immediately. Because the rule list sits in an always-loaded skill, it stays in context despite the short history window. This should cut repeated searches and reads and turn the 10 no-final episodes into finals, lowering turns and tokens. This lever is different from the system.md, tool_guidance and domain-skill edits already targeted.",
+    "component": "skills",
+    "scope": "general",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "general",
+     "name": "evidence_ledger",
+     "when": [
+      "*"
+     ],
+     "summary": "upsert every needed number right after reading it; never repeat searches or reads; compute only on upserted ids, then answer",
+     "content": "1. After every read, if the span contains a number you need, your NEXT action must be upsert: the statement text with value, unit and period, refs=[that S#]. Do not search again before upserting.\n2. Never issue a search query you already issued (same words and company). If results repeat, read an offset you have not read yet, or change the query terms (synonyms, table name, section title).\n3. Never re-read an offset range already returned as an S# span. Move to a new offset or a new document.\n4. compute may reference only ids returned by your upserts. Never invent ids such as E1.\n5. As soon as all inputs are upserted, compute (if derived), then give the final answer immediately. Do not keep searching.\n6. If turns are running low and you hold an upserted value, answer with it instead of exploring."
+    }
+   ],
+   "applied": [
+    "write skill general/evidence_ledger (when: *)"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 0.0625,
+    "accepted": 0.375,
+    "mean_tokens": 36047.4375,
+    "mean_turns": 13.5625,
+    "efficiency": 0.54940703125,
+    "traps": {
+     "separate_basis": 1,
+     "unit_slip": 1
+    },
+    "seconds": 1259.01
+   }
+  }
+ ],
+ "front": [
+  "82dc11db099d",
+  "ca8b4cfc7542"
+ ],
+ "incumbents": [
+  "ca8b4cfc7542",
+  "ca8b4cfc7542",
+  "82dc11db099d",
+  "82dc11db099d"
+ ],
+ "history": [
+  {
+   "gen": 1,
+   "sub": 0,
+   "weights": [
+    0.2,
+    0.8
+   ],
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent gets stuck repeating the same search query verbatim (123 repeated searches, 13/16 episodes with no final). In S02 it never reads at all and issues one identical search 16 times. The same pattern shows up after a few reads in S03 and S05. The block_repeats gate is available but switched off, so nothing tells the agent that a repeat is useless. The system prompt also never requires it to move from search to read, then upsert, then answer. Every episode burns its full turn budget without upserting any evidence, so accuracy is 0 and token cost is high.",
+    "hypothesis": "Two changes should break the loop and turn more episodes into accepted, correct answers at lower turn and token cost: enable the block_repeats gate, and add a short imperative rule to system.md. The rule: after a search, always read the top result's doc_id and offset instead of searching again; never repeat an identical query; if a query was already issued, read an unread result or change the query terms (for example a table name such as 연결 손익계산서); once a value is read, upsert it with its span ref and give the final answer.",
+    "component": "logic",
+    "scope": "general",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "set_gate",
+     "scope": "general",
+     "key": "block_repeats",
+     "value": "true"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "system.md",
+     "content": "\n\nProgress rule (mandatory):\n- After any search, your NEXT action is read on the best unread result (its doc_id + offset). Never search twice in a row with the same query.\n- If a query was already issued, do not reissue it. Read an unread result from it, or change the terms (e.g. name the table or section: 연결 손익계산서, 부문 정보), or use list_docs.\n- Once a needed value is read, upsert it with its S# ref. When all needed facts are active evidence, compute if needed, then call final. Do not run out of turns without calling final."
+    }
+   ],
+   "applied": [
+    "set general gate block_repeats=True",
+    "append 525 chars to general/system.md"
+   ],
+   "error": null,
+   "child": "ca8b4cfc7542",
+   "f": [
+    0.0625,
+    0.63305625
+   ],
+   "replaced": [
+    0,
+    1
+   ]
+  },
+  {
+   "gen": 1,
+   "sub": 1,
+   "weights": [
+    0.4,
+    0.6
+   ],
+   "parent": "ca8b4cfc7542",
+   "diagnosis": {
+    "diagnosis": "The agent does not follow the evidence pipeline the tools require. After one search it keeps re-issuing the identical query: 86 repeated searches and 109 block_repeats rejections. It never turns search results into a read using the doc_id and offset they give. Even when it does read (S03, S04), it never upserts, so no E# evidence ids exist. Its final answers therefore fail require_refs or never arrive (11 no_final), which drives accuracy to 0.06. The gate's rejection message is not translated into a concrete next action, and tool_guidance does not spell out the chain from search to read to upsert to final.",
+    "hypothesis": "Rewriting tool_guidance.md as an explicit action chain should push the agent to read and upsert instead of looping, producing more accepted, correct finals in fewer turns. The chain: search returns doc_id@offset, so read one of those next (never repeat the same query); read returns S#; upsert the value with refs [S#] to get E#; final must cite E# ids. Two recovery rules should also be added: if a search or read is blocked, read a different listed offset or change the query terms; once the needed value is in an S span, upsert it immediately. Raising snippet_chars should give the agent enough snippet text to pick the right offset.",
+    "component": "tools",
+    "scope": "general",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "replace_text",
+     "scope": "general",
+     "file": "tool_guidance.md",
+     "old": "Add \"unresolved\": [\"...\"] to any action to update your list of missing facts.",
+     "new": "Add \"unresolved\": [\"...\"] to any action to update your list of missing facts.\n\nRequired chain (follow in order):\n1. search -> results list doc_id + offset. Your NEXT action must be read on one of them. Never re-run the same query.\n2. read -> returns span id S#. If the needed value is in the text, upsert it NOW with refs [\"S#\"] and its unit; this creates evidence id E#.\n3. compute if a derived value is needed (cite E# ids).\n4. final must cite E# ids in refs, never S# and never an empty list.\nRecovery: if an action is REJECTED or blocked, do not repeat it. Instead read a different doc_id/offset from earlier results, or search with changed terms (another item name, a doc type such as 사업보고서, or list_docs). If the read text lacks the value, read the same doc at a later offset."
+    },
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "snippet_chars",
+     "value": "240"
+    }
+   ],
+   "applied": [
+    "replace text in general/tool_guidance.md",
+    "set general config snippet_chars=240"
+   ],
+   "error": null,
+   "child": "fbfb18783fb9",
+   "f": [
+    0.0,
+    0.5957250000000001
+   ],
+   "replaced": []
+  },
+  {
+   "gen": 1,
+   "sub": 2,
+   "weights": [
+    0.6000000000000001,
+    0.3999999999999999
+   ],
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "Agents loop on one identical search instead of reading. Even when they do read, they never upsert or compute. In S02 the agent re-searched 15 times and never read. In S05 it read the corrected [기재정정] annual report six times but extracted nothing. Logic and tool-guidance fixes for the loop are already taken. The missing piece here is domain navigation knowledge. The agent does not know where DART filings put consolidated figures (요약재무정보, 연결 포괄손익계산서, 매출실적/부문 tables). It also does not know to pick the latest final (정정) filing via list_docs or how to turn a 백만원/천원 figure with △ into 억원. So it cannot recognise a found value and keeps searching for it.",
+    "hypothesis": "Add a domain skill triggered by financial-figure keywords (매출액, 영업이익, 비중, 억원, 연결). It should spell out a fixed recipe. First call list_docs and choose the latest 사업보고서 including [기재정정]. Then search section titles like '연결 포괄손익계산서', '요약재무정보' or '매출실적', not the question text, and read the hit. Upsert the raw cell together with the table's 단위 line and △ sign. Finally use compute for the unit conversion or the share ratio before answering. This should lead to read→upsert→compute→final, raising accepted, correct answers and also cutting wasted turns.",
+    "component": "skills",
+    "scope": "domain",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "domain",
+     "name": "dart_figure_recipe",
+     "when": [
+      "매출액",
+      "영업이익",
+      "순이익",
+      "비중",
+      "억원",
+      "연결"
+     ],
+     "summary": "Fixed recipe to locate, extract and convert a consolidated figure from the latest final DART filing",
+     "content": "1. Call list_docs for the company. Pick the latest 사업보고서 for the asked year. If a [기재정정] version exists, use it, because it is the final figure.\n2. Search that filing using a section title, not the question text: '요약재무정보', '연결 포괄손익계산서', or '매출실적' / '부문별 매출' for segment shares. Never repeat a query. If the results do not change, read the top hit's doc_id and offset.\n3. Read the hit. Find the column for the asked year and the table's (단위: ...) line.\n4. Upsert the raw cell immediately. Include its unit and keep △ as a minus sign.\n5. Use compute for every conversion: 억원 = 백만원/100 = 천원/100000. Share % = segment / total * 100. Round as the question asks.\n6. Answer with the computed number only."
+    }
+   ],
+   "applied": [
+    "write skill domain/dart_figure_recipe (when: 매출액, 영업이익, 순이익, 비중, 억원, 연결)"
+   ],
+   "error": null,
+   "child": "82dc11db099d",
+   "f": [
+    0.125,
+    0.5703390625
+   ],
+   "replaced": [
+    2,
+    3
+   ]
+  },
+  {
+   "gen": 1,
+   "sub": 3,
+   "weights": [
+    0.8,
+    0.19999999999999996
+   ],
+   "parent": "82dc11db099d",
+   "diagnosis": {
+    "diagnosis": "The agent burns its turn budget in loops. It repeats identical searches (72 in total, for example the same query five times in a row) and re-reads the same offsets. It never upserts a statement: every episode shows upserts=0 and computes=0, and the compute calls cite nonexistent ids like E1. Because history_window=3, it loses track of what it has already searched and read. With no stored evidence it cannot compute or finalize, which explains no_final=10, about 14 turns and 34k tokens per episode, and accuracy of 0.12. The one always-on skill covers only table headers, not this evidence workflow.",
+    "hypothesis": "Add a short general skill that is always loaded (when: \"*\"), for example evidence_ledger, with four rules. (1) After every read, if the span holds a needed number, upsert it at once with its unit and the S# ref, before any further search. (2) Never repeat a search query already issued. If a search returns the same results, read a new offset or change the query terms. (3) compute may only reference ids returned by upsert, never invented ones like E1. (4) Once all inputs are upserted, compute and then answer immediately. Because the rule list sits in an always-loaded skill, it stays in context despite the short history window. This should cut repeated searches and reads and turn the 10 no-final episodes into finals, lowering turns and tokens. This lever is different from the system.md, tool_guidance and domain-skill edits already targeted.",
+    "component": "skills",
+    "scope": "general",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "general",
+     "name": "evidence_ledger",
+     "when": [
+      "*"
+     ],
+     "summary": "upsert every needed number right after reading it; never repeat searches or reads; compute only on upserted ids, then answer",
+     "content": "1. After every read, if the span contains a number you need, your NEXT action must be upsert: the statement text with value, unit and period, refs=[that S#]. Do not search again before upserting.\n2. Never issue a search query you already issued (same words and company). If results repeat, read an offset you have not read yet, or change the query terms (synonyms, table name, section title).\n3. Never re-read an offset range already returned as an S# span. Move to a new offset or a new document.\n4. compute may reference only ids returned by your upserts. Never invent ids such as E1.\n5. As soon as all inputs are upserted, compute (if derived), then give the final answer immediately. Do not keep searching.\n6. If turns are running low and you hold an upserted value, answer with it instead of exploring."
+    }
+   ],
+   "applied": [
+    "write skill general/evidence_ledger (when: *)"
+   ],
+   "error": null,
+   "child": "e59796b63bba",
+   "f": [
+    0.0625,
+    0.54940703125
+   ],
+   "replaced": []
+  }
+ ],
+ "best": "82dc11db099d",
+ "editor_calls": 8,
+ "editor": {
+  "name": "anthropic:claude-opus-5-5",
+  "usd": 0.2367,
+  "usage": {
+   "calls": 0,
+   "prompt_tokens": 0,
+   "output_tokens": 0,
+   "seconds": 0.0
+  }
+ }
+}

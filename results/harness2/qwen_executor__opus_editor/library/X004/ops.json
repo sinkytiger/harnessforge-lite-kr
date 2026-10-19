@@ -1,0 +1,23 @@
+[
+ {
+  "op": "write_skill",
+  "scope": "domain",
+  "name": "dart_figure_recipe",
+  "when": [
+   "매출액",
+   "영업이익",
+   "순이익",
+   "비중",
+   "억원",
+   "연결"
+  ],
+  "summary": "Fixed recipe to locate, extract and convert a consolidated figure from the latest final DART filing",
+  "content": "1. Call list_docs once for the company. Pick the latest filing for the target period, preferring [기재정정]/[정정] over the original report. Never search filing titles.\n2. search the line item (e.g. 당기순이익) with the company filter, then read that doc at the returned offset.\n3. As soon as a read span shows the line in the 연결 statement, upsert it immediately. Include the line label, the 당기 column, the unit line (단위: 백만원/천원/원) and the sign (△ or parentheses mean negative), with refs [S#]. Do not re-read the same range.\n4. compute the conversion using ONLY the E# id that upsert returned (백만원/100, 천원/100000, 원/100000000). Round as asked.\n5. Submit final right after the compute succeeds, citing that E#."
+ },
+ {
+  "op": "append_text",
+  "scope": "domain",
+  "file": "domain.md",
+  "content": " Consolidated net income (연결 당기순이익) is the total 당기순이익 line of the 연결 포괄손익계산서 (or 연결손익계산서), not the line attributable to 지배기업 소유주. 사업보고서 also repeats it in 요약재무정보. Either source is acceptable if it is marked 연결 and its unit is stated."
+ }
+]

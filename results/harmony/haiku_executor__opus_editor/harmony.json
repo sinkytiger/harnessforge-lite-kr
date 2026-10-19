@@ -1,0 +1,784 @@
+{
+ "weights": [
+  [
+   0.2,
+   0.8
+  ],
+  [
+   0.4,
+   0.6
+  ],
+  [
+   0.6000000000000001,
+   0.3999999999999999
+  ],
+  [
+   0.8,
+   0.19999999999999996
+  ]
+ ],
+ "z": [
+  1.0,
+  0.659675
+ ],
+ "archive": [
+  {
+   "hash": "e55373a1f210",
+   "f_acc": 0.9375,
+   "f_eff": 0.6299406249999999,
+   "gen": 0,
+   "sub": null,
+   "parent": null,
+   "diagnosis": {},
+   "ops": [],
+   "applied": [],
+   "metrics": {
+    "n": 16,
+    "accuracy": 0.9375,
+    "accepted": 1.0,
+    "mean_tokens": 29604.75,
+    "mean_turns": 8.375,
+    "efficiency": 0.6299406249999999,
+    "traps": {
+     "unit_slip": 1
+    },
+    "seconds": 313.9
+   }
+  },
+  {
+   "hash": "0f283002b46a",
+   "f_acc": 1.0,
+   "f_eff": 0.55884375,
+   "gen": 1,
+   "sub": 0,
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent read the correct final corrected filing and stored the right value (3,547,112 백만원). It then converted to 억원 by dividing by 1000 instead of 100, giving 3547.1 instead of 35471.12. Two things allowed this. No compute step was required for the derived unit conversion. The unit_declared gate is off, so the source unit and the target unit were never checked against each other before the final answer.",
+    "hypothesis": "Add a short domain skill, triggered by '억원' and '단위', that tells the agent how to convert units. It should state the source unit, then use the fixed factor (백만원÷100=억원, 천원÷100,000=억원, 원÷100,000,000=억원). It should also sanity-check the digit count before answering. This would fix unit slips at almost no turn cost. Enabling the unit_declared gate could reinforce it.",
+    "component": "skills",
+    "scope": "domain",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "domain",
+     "name": "eok_unit_conversion",
+     "when": [
+      "억원",
+      "단위"
+     ],
+     "summary": "convert table figures to 억원 with the correct factor and verify the magnitude",
+     "content": "Before answering in 억원:\n1. Find the table's unit line (단위: 원 / 천원 / 백만원) and write it in your statement.\n2. Convert to 백만원 first. From 원, divide by 1000 twice. From 천원, divide by 1000 once.\n3. Then 백만원 ÷ 100 = 억원. Never divide 백만원 by 1000.\n4. Use a compute action for the division. Do not do it in your head.\n5. Sanity check: a 억원 figure has exactly two fewer integer digits than the same figure in 백만원. If not, redo the conversion.\n6. Round only at the end, to the requested decimals."
+    }
+   ],
+   "applied": [
+    "write skill domain/eok_unit_conversion (when: 억원, 단위)"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 1.0,
+    "accepted": 1.0,
+    "mean_tokens": 35292.5,
+    "mean_turns": 9.4375,
+    "efficiency": 0.55884375,
+    "traps": {},
+    "seconds": 338.6
+   }
+  },
+  {
+   "hash": "9c95b736436d",
+   "f_acc": 1.0,
+   "f_eff": 0.6128710937499999,
+   "gen": 1,
+   "sub": 1,
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent read the right figure from the final amended filing: 3,547,112 백만원. It then converted to 억원 in its head and divided by 1000 instead of 100, giving 3547.1 instead of 35471.12. No compute action was used (computes=0), and the require_compute_for_derived gate is off, so the conversion was never made explicit or checked. The error is in the derivation step, not in retrieval.",
+    "hypothesis": "Turn on require_compute_for_derived and add one general system.md rule: when the requested unit differs from the source table's unit, do the conversion with a compute action and write out the factor (e.g. source_value × factor). This should stop unit slips across questions without adding retrieval turns. It costs at most one compute turn, which is cheaper than a wrong answer. It is a different lever from the domain unit-conversion skill already being tried.",
+    "component": "logic",
+    "scope": "general",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "set_gate",
+     "scope": "general",
+     "key": "require_compute_for_derived",
+     "value": "true"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "system.md",
+     "content": "\nUnit conversion: if the question asks for a unit different from the source table's unit, never convert in your head. First derive the factor from the unit definitions (e.g. how many source units make one target unit). Then run compute over the evidence id with that factor written out (E# * factor or E# / factor). Sanity-check the magnitude before final."
+    }
+   ],
+   "applied": [
+    "set general gate require_compute_for_derived=True",
+    "append 355 chars to general/system.md"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 1.0,
+    "accepted": 1.0,
+    "mean_tokens": 30970.3125,
+    "mean_turns": 8.5,
+    "efficiency": 0.6128710937499999,
+    "traps": {},
+    "seconds": 329.76
+   }
+  },
+  {
+   "hash": "2a2eb32810e4",
+   "f_acc": 1.0,
+   "f_eff": 0.6143398437500001,
+   "gen": 1,
+   "sub": 2,
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent read the correct value, 3,547,112 백만원, from the final corrected filing. When converting it to 억원 it divided by 1000 instead of 100, giving 3547.1 instead of 35471.12. It did no compute step, and nothing checked that the source unit and the conversion factor were declared before it answered. The domain.md text already says that 1억원 = 100 백만원, but nothing enforces it. Retrieval and filing choice were both correct, so the miss is a pure unit slip at answer time.",
+    "hypothesis": "Turn on the domain gate unit_declared and add one domain.md line. The line should require each numeric statement to record its source unit from the table's (단위: …) line. When the question asks for 억원, the agent must apply the explicit factor (백만원 ÷ 100, 천원 ÷ 100,000, 원 ÷ 100,000,000) and recheck the magnitude before answering. This should stop thousand-versus-hundred slips at little turn cost. It is a different lever from the domain skill and the general compute gate already targeted this generation.",
+    "component": "logic",
+    "scope": "domain",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "set_gate",
+     "scope": "domain",
+     "key": "unit_declared",
+     "value": "true"
+    },
+    {
+     "op": "append_text",
+     "scope": "domain",
+     "file": "domain.md",
+     "content": "\nUnit rule: in every numeric statement, record the source unit from the table's (단위: …) line. To answer in 억원: from 백만원 divide by 100 (never 1000); from 천원 first divide by 1000 to get 백만원, then by 100; from 원 first convert to 백만원. Before final, recheck magnitude: 억원 has two fewer digits than 백만원."
+    }
+   ],
+   "applied": [
+    "set domain gate unit_declared=True",
+    "append 296 chars to domain/dart/domain.md"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 1.0,
+    "accepted": 1.0,
+    "mean_tokens": 30852.8125,
+    "mean_turns": 8.375,
+    "efficiency": 0.6143398437500001,
+    "traps": {},
+    "seconds": 334.94
+   }
+  },
+  {
+   "hash": "0773fe9306e6",
+   "f_acc": 0.875,
+   "f_eff": 0.6063609375,
+   "gen": 1,
+   "sub": 3,
+   "parent": "2a2eb32810e4",
+   "diagnosis": {
+    "diagnosis": "Accuracy is already 1.00 with all answers accepted, so nothing is failing on correctness. The cost is high, though: 8.4 turns and about 31k tokens per episode. The likely cause is retrieval overhead. With search_k=4 and short snippets (160 chars), the agent cannot see which hit contains the target table row. It reads several 1400-char windows and runs extra searches before it locates the figure. The other subproblems this generation already target skills/domain, logic/general and logic/domain, which leaves the tools lever unused.",
+    "hypothesis": "Two tool changes should let the agent pick the right hit from the snippet alone: longer snippets (about 240 chars) so the unit line and row label show up in search results, and a slightly smaller search_k (3). A tool_guidance line telling it to read only when the snippet does not already show the needed row with its unit, and to start the read offset just before the matched row, should cut redundant reads. Read windows would also be reduced to about 1000 chars. Together this should lower turns and tokens without losing accuracy.",
+    "component": "tools",
+    "scope": "general",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "snippet_chars",
+     "value": "240"
+    },
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "search_k",
+     "value": "3"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "tool_guidance.md",
+     "content": "Read economy: pick the hit whose snippet shows the needed row label; do not read hits that don't. Read that hit once, with an offset a little before the matched row so the window also holds the column header and (단위) line. Never re-read an offset range you already read; use its S# span instead. If the snippets show no matching row, refine the query rather than reading blindly."
+    }
+   ],
+   "applied": [
+    "set general config snippet_chars=240",
+    "set general config search_k=3",
+    "append 379 chars to general/tool_guidance.md"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 0.875,
+    "accepted": 1.0,
+    "mean_tokens": 31491.125,
+    "mean_turns": 8.375,
+    "efficiency": 0.6063609375,
+    "traps": {
+     "unit_slip": 2
+    },
+    "seconds": 345.71
+   }
+  },
+  {
+   "hash": "341b7f8eb595",
+   "f_acc": 1.0,
+   "f_eff": 0.5704351562500001,
+   "gen": 2,
+   "sub": 0,
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent correctly read 3,547,112 백만원 but converted it to 억원 by dividing by 1000 instead of 100, giving 3547.1 instead of 35471.12. It never used compute for the unit conversion and finalized a hand-converted figure. The domain.md states 1억원 = 100 백만원, but nothing forces an explicit conversion step when the question's unit differs from the table's unit, and no unit-related gate is active.",
+    "hypothesis": "Add a short domain skill, triggered by '억원' or '단위', that tells the agent to note the table's declared unit, convert with an explicit compute step (백만원 ÷ 100 = 억원; 천원 ÷ 100,000 = 억원), and sanity-check the digit count before finalizing. Optionally enable the unit_declared gate. This fixes unit slips at almost no extra turn cost.",
+    "component": "skills",
+    "scope": "domain",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "domain",
+     "name": "eok_unit_conversion",
+     "when": [
+      "억원",
+      "단위"
+     ],
+     "summary": "convert table units to the asked unit with an explicit compute step",
+     "content": "Before answering in 억원, note the table's declared unit line (단위: ...). Do not convert in your head. Use a compute step with the ratios from domain.md: 1억원 = 100 백만원, so divide a 백만원 figure by 100; divide a 천원 figure by the 천원-per-억원 ratio; divide a 원 figure by 10^8. Then sanity-check the result. A 백만원 value converted to 억원 loses exactly two digits, not three. Round only after the conversion."
+    }
+   ],
+   "applied": [
+    "write skill domain/eok_unit_conversion (when: 억원, 단위)"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 1.0,
+    "accepted": 1.0,
+    "mean_tokens": 34365.1875,
+    "mean_turns": 9.25,
+    "efficiency": 0.5704351562500001,
+    "traps": {},
+    "seconds": 347.94
+   }
+  },
+  {
+   "hash": "4b7dc00e1f2b",
+   "f_acc": 1.0,
+   "f_eff": 0.59273984375,
+   "gen": 2,
+   "sub": 1,
+   "parent": "9c95b736436d",
+   "diagnosis": {
+    "diagnosis": "Accuracy is already 1.00 with no traps, so cost is the problem. Episodes average 8.5 turns and about 31k tokens. Much of this likely comes from re-sending a 3-turn history window of long reads (1400 chars), long thoughts (320 chars), and 4 search results with 160-char snippets every turn. The agent probably also keeps searching or reading after the needed value has been found and upserted, instead of answering straight away.",
+    "hypothesis": "Trim the context carried on each turn and add an early-stop rule; this should cut tokens and turns without hurting accuracy. Concretely: lower history_window to 2, thought_chars to 160 and read_chars to 1000, and append to system.md: 'Once every unresolved fact has a cited statement, answer immediately; do not re-verify.' Skills are already being changed by another subproblem, so this targets logic and config instead.",
+    "component": "logic",
+    "scope": "general",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "history_window",
+     "value": "2"
+    },
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "thought_chars",
+     "value": "160"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "system.md",
+     "content": "\nEarly stop: once every unresolved fact has a cited active statement, compute if needed and call final immediately. Do not re-verify, re-read or search for confirmation."
+    }
+   ],
+   "applied": [
+    "set general config history_window=2",
+    "set general config thought_chars=160",
+    "append 168 chars to general/system.md"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 1.0,
+    "accepted": 1.0,
+    "mean_tokens": 32580.8125,
+    "mean_turns": 8.875,
+    "efficiency": 0.59273984375,
+    "traps": {},
+    "seconds": 332.38
+   }
+  },
+  {
+   "hash": "ec2b19f64615",
+   "f_acc": 0.875,
+   "f_eff": 0.6265921875,
+   "gen": 2,
+   "sub": 2,
+   "parent": "2a2eb32810e4",
+   "diagnosis": {
+    "diagnosis": "Accuracy is already 1.00, so the problem is cost: 8.4 turns and about 31k tokens per episode. Other subproblems already cover skills/domain and logic/general (context trimming plus early stop), so the remaining lever is tools. The search-and-read loop is likely wasteful. read_chars=1400 pulls large spans, snippet_chars=160 is often too short to locate the number, which forces extra reads, and search_k=4 produces scattered follow-up reads. The tool guidance also does not tell the agent to target the table line directly or to skip reading when a snippet already shows the value with its unit.",
+    "hypothesis": "Make the tools cheaper per turn and use fewer turns. Lower read_chars to about 900, since a financial table row plus its unit line fits in that. Raise snippet_chars to about 240 so search results often contain the value and the (단위) line, which lets the agent read once at a precise offset. Add one guidance line in general tool_guidance.md: query with the company filter plus the exact line-item term, read only at the offset of the best hit, and never re-read a span already returned. This should cut tokens and turns while keeping accuracy.",
+    "component": "tools",
+    "scope": "general",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "read_chars",
+     "value": "900"
+    },
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "snippet_chars",
+     "value": "240"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "tool_guidance.md",
+     "content": "Efficiency: search with the company filter plus the exact line-item term. Read once, at the offset of the best hit that shows the value or its table. Never re-read a span you already have; reuse its S# id."
+    }
+   ],
+   "applied": [
+    "set general config read_chars=900",
+    "set general config snippet_chars=240",
+    "append 205 chars to general/tool_guidance.md"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 0.875,
+    "accepted": 1.0,
+    "mean_tokens": 29872.625,
+    "mean_turns": 8.75,
+    "efficiency": 0.6265921875,
+    "traps": {
+     "unit_slip": 2
+    },
+    "seconds": 342.38
+   }
+  },
+  {
+   "hash": "e1e22addc1a0",
+   "f_acc": 1.0,
+   "f_eff": 0.659675,
+   "gen": 2,
+   "sub": 3,
+   "parent": "2a2eb32810e4",
+   "diagnosis": {
+    "diagnosis": "Accuracy is already 1.00. The remaining cost is about 8.4 turns and 31k tokens per episode. Much of that is navigation overhead: the agent searches broadly and reads several locations before it finds the right filing and table. It has no domain guidance on which filing type and section hold a given figure (e.g., the annual 사업보고서 versus quarterly reports, or the 재무제표 versus 주석 sections), so it spends turns locating the right document. The other subproblems already target unit conversion skills, context trimming and early stopping, and tool read sizes. That leaves domain navigation knowledge as an unused lever.",
+    "hypothesis": "Add a domain skill that is always loaded or triggered by common financial keywords. It should tell the agent to call list_docs first to pick the filing matching the asked period (the 사업보고서 for annual figures), then search with the exact Korean line-item name together with the company filter, and then read at the returned offset. This should cut wasted searches and reads by about 2–3 turns while keeping accuracy unchanged.",
+    "component": "skills",
+    "scope": "domain",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "domain",
+     "name": "filing_navigation",
+     "when": [
+      "*"
+     ],
+     "summary": "Find the right filing and table fast: list_docs, then exact line-item search with company filter, then read at offset",
+     "content": "1. Call list_docs for the company first. Pick the filing whose period matches the question: 사업보고서 for annual or fiscal-year figures, 반기보고서 for half-year figures, 분기보고서 for quarter figures. If there are several, take the latest filing that covers that period.\n2. Search with the exact Korean line-item name (e.g. 매출액, 영업이익, 당기순이익, 자산총계) plus the company filter. Add 연결 or 별도 if the question specifies it. Prefer hits in the 재무제표 section over 주석 or 요약 sections.\n3. Read at the returned doc_id and offset. Check the (단위: …) line and the period column header before copying the value.\n4. Do not search broadly or read several documents when a matching filing exists. Upsert as soon as the value is found."
+    }
+   ],
+   "applied": [
+    "write skill domain/filing_navigation (when: *)"
+   ],
+   "metrics": {
+    "n": 16,
+    "accuracy": 1.0,
+    "accepted": 1.0,
+    "mean_tokens": 27226.0,
+    "mean_turns": 7.3125,
+    "efficiency": 0.659675,
+    "traps": {},
+    "seconds": 287.33
+   }
+  }
+ ],
+ "front": [
+  "e1e22addc1a0"
+ ],
+ "incumbents": [
+  "e55373a1f210",
+  "9c95b736436d",
+  "e1e22addc1a0",
+  "e1e22addc1a0"
+ ],
+ "history": [
+  {
+   "gen": 1,
+   "sub": 0,
+   "weights": [
+    0.2,
+    0.8
+   ],
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent read the correct final corrected filing and stored the right value (3,547,112 백만원). It then converted to 억원 by dividing by 1000 instead of 100, giving 3547.1 instead of 35471.12. Two things allowed this. No compute step was required for the derived unit conversion. The unit_declared gate is off, so the source unit and the target unit were never checked against each other before the final answer.",
+    "hypothesis": "Add a short domain skill, triggered by '억원' and '단위', that tells the agent how to convert units. It should state the source unit, then use the fixed factor (백만원÷100=억원, 천원÷100,000=억원, 원÷100,000,000=억원). It should also sanity-check the digit count before answering. This would fix unit slips at almost no turn cost. Enabling the unit_declared gate could reinforce it.",
+    "component": "skills",
+    "scope": "domain",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "domain",
+     "name": "eok_unit_conversion",
+     "when": [
+      "억원",
+      "단위"
+     ],
+     "summary": "convert table figures to 억원 with the correct factor and verify the magnitude",
+     "content": "Before answering in 억원:\n1. Find the table's unit line (단위: 원 / 천원 / 백만원) and write it in your statement.\n2. Convert to 백만원 first. From 원, divide by 1000 twice. From 천원, divide by 1000 once.\n3. Then 백만원 ÷ 100 = 억원. Never divide 백만원 by 1000.\n4. Use a compute action for the division. Do not do it in your head.\n5. Sanity check: a 억원 figure has exactly two fewer integer digits than the same figure in 백만원. If not, redo the conversion.\n6. Round only at the end, to the requested decimals."
+    }
+   ],
+   "applied": [
+    "write skill domain/eok_unit_conversion (when: 억원, 단위)"
+   ],
+   "error": null,
+   "child": "0f283002b46a",
+   "f": [
+    1.0,
+    0.55884375
+   ],
+   "replaced": []
+  },
+  {
+   "gen": 1,
+   "sub": 1,
+   "weights": [
+    0.4,
+    0.6
+   ],
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent read the right figure from the final amended filing: 3,547,112 백만원. It then converted to 억원 in its head and divided by 1000 instead of 100, giving 3547.1 instead of 35471.12. No compute action was used (computes=0), and the require_compute_for_derived gate is off, so the conversion was never made explicit or checked. The error is in the derivation step, not in retrieval.",
+    "hypothesis": "Turn on require_compute_for_derived and add one general system.md rule: when the requested unit differs from the source table's unit, do the conversion with a compute action and write out the factor (e.g. source_value × factor). This should stop unit slips across questions without adding retrieval turns. It costs at most one compute turn, which is cheaper than a wrong answer. It is a different lever from the domain unit-conversion skill already being tried.",
+    "component": "logic",
+    "scope": "general",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "set_gate",
+     "scope": "general",
+     "key": "require_compute_for_derived",
+     "value": "true"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "system.md",
+     "content": "\nUnit conversion: if the question asks for a unit different from the source table's unit, never convert in your head. First derive the factor from the unit definitions (e.g. how many source units make one target unit). Then run compute over the evidence id with that factor written out (E# * factor or E# / factor). Sanity-check the magnitude before final."
+    }
+   ],
+   "applied": [
+    "set general gate require_compute_for_derived=True",
+    "append 355 chars to general/system.md"
+   ],
+   "error": null,
+   "child": "9c95b736436d",
+   "f": [
+    1.0,
+    0.6128710937499999
+   ],
+   "replaced": [
+    1
+   ]
+  },
+  {
+   "gen": 1,
+   "sub": 2,
+   "weights": [
+    0.6000000000000001,
+    0.3999999999999999
+   ],
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent read the correct value, 3,547,112 백만원, from the final corrected filing. When converting it to 억원 it divided by 1000 instead of 100, giving 3547.1 instead of 35471.12. It did no compute step, and nothing checked that the source unit and the conversion factor were declared before it answered. The domain.md text already says that 1억원 = 100 백만원, but nothing enforces it. Retrieval and filing choice were both correct, so the miss is a pure unit slip at answer time.",
+    "hypothesis": "Turn on the domain gate unit_declared and add one domain.md line. The line should require each numeric statement to record its source unit from the table's (단위: …) line. When the question asks for 억원, the agent must apply the explicit factor (백만원 ÷ 100, 천원 ÷ 100,000, 원 ÷ 100,000,000) and recheck the magnitude before answering. This should stop thousand-versus-hundred slips at little turn cost. It is a different lever from the domain skill and the general compute gate already targeted this generation.",
+    "component": "logic",
+    "scope": "domain",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "set_gate",
+     "scope": "domain",
+     "key": "unit_declared",
+     "value": "true"
+    },
+    {
+     "op": "append_text",
+     "scope": "domain",
+     "file": "domain.md",
+     "content": "\nUnit rule: in every numeric statement, record the source unit from the table's (단위: …) line. To answer in 억원: from 백만원 divide by 100 (never 1000); from 천원 first divide by 1000 to get 백만원, then by 100; from 원 first convert to 백만원. Before final, recheck magnitude: 억원 has two fewer digits than 백만원."
+    }
+   ],
+   "applied": [
+    "set domain gate unit_declared=True",
+    "append 296 chars to domain/dart/domain.md"
+   ],
+   "error": null,
+   "child": "2a2eb32810e4",
+   "f": [
+    1.0,
+    0.6143398437500001
+   ],
+   "replaced": [
+    2,
+    3
+   ]
+  },
+  {
+   "gen": 1,
+   "sub": 3,
+   "weights": [
+    0.8,
+    0.19999999999999996
+   ],
+   "parent": "2a2eb32810e4",
+   "diagnosis": {
+    "diagnosis": "Accuracy is already 1.00 with all answers accepted, so nothing is failing on correctness. The cost is high, though: 8.4 turns and about 31k tokens per episode. The likely cause is retrieval overhead. With search_k=4 and short snippets (160 chars), the agent cannot see which hit contains the target table row. It reads several 1400-char windows and runs extra searches before it locates the figure. The other subproblems this generation already target skills/domain, logic/general and logic/domain, which leaves the tools lever unused.",
+    "hypothesis": "Two tool changes should let the agent pick the right hit from the snippet alone: longer snippets (about 240 chars) so the unit line and row label show up in search results, and a slightly smaller search_k (3). A tool_guidance line telling it to read only when the snippet does not already show the needed row with its unit, and to start the read offset just before the matched row, should cut redundant reads. Read windows would also be reduced to about 1000 chars. Together this should lower turns and tokens without losing accuracy.",
+    "component": "tools",
+    "scope": "general",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "snippet_chars",
+     "value": "240"
+    },
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "search_k",
+     "value": "3"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "tool_guidance.md",
+     "content": "Read economy: pick the hit whose snippet shows the needed row label; do not read hits that don't. Read that hit once, with an offset a little before the matched row so the window also holds the column header and (단위) line. Never re-read an offset range you already read; use its S# span instead. If the snippets show no matching row, refine the query rather than reading blindly."
+    }
+   ],
+   "applied": [
+    "set general config snippet_chars=240",
+    "set general config search_k=3",
+    "append 379 chars to general/tool_guidance.md"
+   ],
+   "error": null,
+   "child": "0773fe9306e6",
+   "f": [
+    0.875,
+    0.6063609375
+   ],
+   "replaced": []
+  },
+  {
+   "gen": 2,
+   "sub": 0,
+   "weights": [
+    0.2,
+    0.8
+   ],
+   "parent": "e55373a1f210",
+   "diagnosis": {
+    "diagnosis": "The agent correctly read 3,547,112 백만원 but converted it to 억원 by dividing by 1000 instead of 100, giving 3547.1 instead of 35471.12. It never used compute for the unit conversion and finalized a hand-converted figure. The domain.md states 1억원 = 100 백만원, but nothing forces an explicit conversion step when the question's unit differs from the table's unit, and no unit-related gate is active.",
+    "hypothesis": "Add a short domain skill, triggered by '억원' or '단위', that tells the agent to note the table's declared unit, convert with an explicit compute step (백만원 ÷ 100 = 억원; 천원 ÷ 100,000 = 억원), and sanity-check the digit count before finalizing. Optionally enable the unit_declared gate. This fixes unit slips at almost no extra turn cost.",
+    "component": "skills",
+    "scope": "domain",
+    "lens": "accuracy: make more answers correct"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "domain",
+     "name": "eok_unit_conversion",
+     "when": [
+      "억원",
+      "단위"
+     ],
+     "summary": "convert table units to the asked unit with an explicit compute step",
+     "content": "Before answering in 억원, note the table's declared unit line (단위: ...). Do not convert in your head. Use a compute step with the ratios from domain.md: 1억원 = 100 백만원, so divide a 백만원 figure by 100; divide a 천원 figure by the 천원-per-억원 ratio; divide a 원 figure by 10^8. Then sanity-check the result. A 백만원 value converted to 억원 loses exactly two digits, not three. Round only after the conversion."
+    }
+   ],
+   "applied": [
+    "write skill domain/eok_unit_conversion (when: 억원, 단위)"
+   ],
+   "error": null,
+   "child": "341b7f8eb595",
+   "f": [
+    1.0,
+    0.5704351562500001
+   ],
+   "replaced": []
+  },
+  {
+   "gen": 2,
+   "sub": 1,
+   "weights": [
+    0.4,
+    0.6
+   ],
+   "parent": "9c95b736436d",
+   "diagnosis": {
+    "diagnosis": "Accuracy is already 1.00 with no traps, so cost is the problem. Episodes average 8.5 turns and about 31k tokens. Much of this likely comes from re-sending a 3-turn history window of long reads (1400 chars), long thoughts (320 chars), and 4 search results with 160-char snippets every turn. The agent probably also keeps searching or reading after the needed value has been found and upserted, instead of answering straight away.",
+    "hypothesis": "Trim the context carried on each turn and add an early-stop rule; this should cut tokens and turns without hurting accuracy. Concretely: lower history_window to 2, thought_chars to 160 and read_chars to 1000, and append to system.md: 'Once every unresolved fact has a cited statement, answer immediately; do not re-verify.' Skills are already being changed by another subproblem, so this targets logic and config instead.",
+    "component": "logic",
+    "scope": "general",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "history_window",
+     "value": "2"
+    },
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "thought_chars",
+     "value": "160"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "system.md",
+     "content": "\nEarly stop: once every unresolved fact has a cited active statement, compute if needed and call final immediately. Do not re-verify, re-read or search for confirmation."
+    }
+   ],
+   "applied": [
+    "set general config history_window=2",
+    "set general config thought_chars=160",
+    "append 168 chars to general/system.md"
+   ],
+   "error": null,
+   "child": "4b7dc00e1f2b",
+   "f": [
+    1.0,
+    0.59273984375
+   ],
+   "replaced": []
+  },
+  {
+   "gen": 2,
+   "sub": 2,
+   "weights": [
+    0.6000000000000001,
+    0.3999999999999999
+   ],
+   "parent": "2a2eb32810e4",
+   "diagnosis": {
+    "diagnosis": "Accuracy is already 1.00, so the problem is cost: 8.4 turns and about 31k tokens per episode. Other subproblems already cover skills/domain and logic/general (context trimming plus early stop), so the remaining lever is tools. The search-and-read loop is likely wasteful. read_chars=1400 pulls large spans, snippet_chars=160 is often too short to locate the number, which forces extra reads, and search_k=4 produces scattered follow-up reads. The tool guidance also does not tell the agent to target the table line directly or to skip reading when a snippet already shows the value with its unit.",
+    "hypothesis": "Make the tools cheaper per turn and use fewer turns. Lower read_chars to about 900, since a financial table row plus its unit line fits in that. Raise snippet_chars to about 240 so search results often contain the value and the (단위) line, which lets the agent read once at a precise offset. Add one guidance line in general tool_guidance.md: query with the company filter plus the exact line-item term, read only at the offset of the best hit, and never re-read a span already returned. This should cut tokens and turns while keeping accuracy.",
+    "component": "tools",
+    "scope": "general",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "read_chars",
+     "value": "900"
+    },
+    {
+     "op": "set_config",
+     "scope": "general",
+     "key": "snippet_chars",
+     "value": "240"
+    },
+    {
+     "op": "append_text",
+     "scope": "general",
+     "file": "tool_guidance.md",
+     "content": "Efficiency: search with the company filter plus the exact line-item term. Read once, at the offset of the best hit that shows the value or its table. Never re-read a span you already have; reuse its S# id."
+    }
+   ],
+   "applied": [
+    "set general config read_chars=900",
+    "set general config snippet_chars=240",
+    "append 205 chars to general/tool_guidance.md"
+   ],
+   "error": null,
+   "child": "ec2b19f64615",
+   "f": [
+    0.875,
+    0.6265921875
+   ],
+   "replaced": []
+  },
+  {
+   "gen": 2,
+   "sub": 3,
+   "weights": [
+    0.8,
+    0.19999999999999996
+   ],
+   "parent": "2a2eb32810e4",
+   "diagnosis": {
+    "diagnosis": "Accuracy is already 1.00. The remaining cost is about 8.4 turns and 31k tokens per episode. Much of that is navigation overhead: the agent searches broadly and reads several locations before it finds the right filing and table. It has no domain guidance on which filing type and section hold a given figure (e.g., the annual 사업보고서 versus quarterly reports, or the 재무제표 versus 주석 sections), so it spends turns locating the right document. The other subproblems already target unit conversion skills, context trimming and early stopping, and tool read sizes. That leaves domain navigation knowledge as an unused lever.",
+    "hypothesis": "Add a domain skill that is always loaded or triggered by common financial keywords. It should tell the agent to call list_docs first to pick the filing matching the asked period (the 사업보고서 for annual figures), then search with the exact Korean line-item name together with the company filter, and then read at the returned offset. This should cut wasted searches and reads by about 2–3 turns while keeping accuracy unchanged.",
+    "component": "skills",
+    "scope": "domain",
+    "lens": "cost: reach the same answers with fewer tokens and turns"
+   },
+   "ops": [
+    {
+     "op": "write_skill",
+     "scope": "domain",
+     "name": "filing_navigation",
+     "when": [
+      "*"
+     ],
+     "summary": "Find the right filing and table fast: list_docs, then exact line-item search with company filter, then read at offset",
+     "content": "1. Call list_docs for the company first. Pick the filing whose period matches the question: 사업보고서 for annual or fiscal-year figures, 반기보고서 for half-year figures, 분기보고서 for quarter figures. If there are several, take the latest filing that covers that period.\n2. Search with the exact Korean line-item name (e.g. 매출액, 영업이익, 당기순이익, 자산총계) plus the company filter. Add 연결 or 별도 if the question specifies it. Prefer hits in the 재무제표 section over 주석 or 요약 sections.\n3. Read at the returned doc_id and offset. Check the (단위: …) line and the period column header before copying the value.\n4. Do not search broadly or read several documents when a matching filing exists. Upsert as soon as the value is found."
+    }
+   ],
+   "applied": [
+    "write skill domain/filing_navigation (when: *)"
+   ],
+   "error": null,
+   "child": "e1e22addc1a0",
+   "f": [
+    1.0,
+    0.659675
+   ],
+   "replaced": [
+    3,
+    2
+   ]
+  }
+ ],
+ "best": "e1e22addc1a0",
+ "editor_calls": 19,
+ "editor": {
+  "name": "anthropic:claude-opus-5-5",
+  "usd": 0.3907,
+  "usage": {
+   "calls": 4,
+   "prompt_tokens": 10276,
+   "output_tokens": 1626,
+   "seconds": 28.35
+  }
+ }
+}

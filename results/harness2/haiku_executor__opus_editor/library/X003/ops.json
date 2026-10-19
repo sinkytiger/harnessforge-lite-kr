@@ -1,0 +1,14 @@
+[
+ {
+  "op": "append_text",
+  "scope": "domain",
+  "file": "domain.md",
+  "content": "Growth-rate rule: for YoY change, take BOTH years from the same final filing for the asked year: the current column (당기, 제N기) and the prior column (전기, 제N-1기) of one statement. The prior column reflects restatements, so do not pull the prior year from the older report. Final-filing rule: from ONE list_docs call, pick the latest-submitted report for the asked 사업연도. [기재정정]/[정정] beats the original, and 잠정 disclosures never count. State in a note which filing is final, then do not re-list."
+ },
+ {
+  "op": "set_gate",
+  "scope": "domain",
+  "key": "correction_check",
+  "value": "true"
+ }
+]

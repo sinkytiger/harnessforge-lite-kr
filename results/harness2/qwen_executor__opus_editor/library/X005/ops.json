@@ -1,0 +1,20 @@
+[
+ {
+  "op": "set_gate",
+  "scope": "general",
+  "key": "block_repeats",
+  "value": "true"
+ },
+ {
+  "op": "append_text",
+  "scope": "general",
+  "file": "system.md",
+  "content": "Evidence discipline: right after any read that shows a needed value, upsert it (value + unit + period, citing that span) before doing anything else. Never repeat an identical search; if a search already pointed you to a document, read further offsets in it instead. For derived answers (growth %, ratio, difference), first list every input (e.g. current AND prior period from the same table) in unresolved, upsert each one, then compute from the evidence ids and finalize. Leave at least 3 turns for upsert, compute and final."
+ },
+ {
+  "op": "set_gate",
+  "scope": "general",
+  "key": "require_compute_for_derived",
+  "value": "true"
+ }
+]

@@ -1,0 +1,20 @@
+[
+ {
+  "op": "set_gate",
+  "scope": "general",
+  "key": "block_repeats",
+  "value": "true"
+ },
+ {
+  "op": "append_text",
+  "scope": "general",
+  "file": "system.md",
+  "content": "Evidence and coverage discipline: right after every read, upsert any value that bears on the question, citing that span, before taking another action. Keep a list of the doc_id offset ranges you have already read. If the needed item is still missing, read an unread range of the same document (its start, its end, or a gap). Do not repeat a search you already ran. Once the figure is upserted, compute if needed and then finalize."
+ },
+ {
+  "op": "set_config",
+  "scope": "general",
+  "key": "history_window",
+  "value": "5"
+ }
+]

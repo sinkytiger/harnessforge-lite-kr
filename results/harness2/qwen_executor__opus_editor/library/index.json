@@ -1,0 +1,236 @@
+[
+ {
+  "situation": "A Korean DART filing question asks for a consolidated figure (net income, revenue, operating profit) converted to 억원 from a filing that reports in 백만원. The agent finds and reads the correct annual report and computes the conversion. It then loops on repeated identical computes, re-reads and re-searches because it never records the value as evidence, and it never finalizes.",
+  "lesson": "Give the agent a domain recipe for DART figure questions: list filings to pick the final annual report, read it, upsert the consolidated figure with its unit as cited evidence, compute the unit conversion from that evidence ref, then finalize. Without an admitted evidence entry, the agent keeps recomputing and re-reading instead of answering.",
+  "applied": [
+   "write skill domain/dart_figure_recipe (when: 매출액, 영업이익, 순이익, 비중, 억원, 연결)",
+   "set domain gate correction_check=True"
+  ],
+  "ops": [
+   {
+    "op": "write_skill",
+    "scope": "domain",
+    "name": "dart_figure_recipe",
+    "when": [
+     "매출액",
+     "영업이익",
+     "순이익",
+     "비중",
+     "억원",
+     "연결"
+    ],
+    "summary": "Fixed recipe to locate, extract and convert a consolidated figure from the latest final DART filing",
+    "content": "1. list_docs for the company. If a [정정] or later-dated report for the same period exists, use the latest one. Do not use 잠정 or 예비 figures. 2. Read the 연결 손익계산서 (consolidated income statement), not the 별도 (standalone) one. Use the 당기 column for the asked fiscal year. 3. Copy the unit line (단위: 원/천원/백만원) that sits above the table. 4. Convert exactly once: 백만원÷100, 천원÷100000, 원÷100000000. Treat △ as minus. Round as asked. 5. Right after the compute, upsert one statement with the converted value, citing the S# span that shows both the figure and the unit. Then give the final answer. Never repeat the same compute."
+   },
+   {
+    "op": "set_gate",
+    "scope": "domain",
+    "key": "correction_check",
+    "value": "true"
+   }
+  ],
+  "diff": "--- a/domain/dart/gates.json\n+++ b/domain/dart/gates.json\n@@ -2 +2 @@\n- \"correction_check\": false,\n+ \"correction_check\": true,\n--- a/domain/dart/skills/dart_figure_recipe.md\n+++ b/domain/dart/skills/dart_figure_recipe.md\n@@ -6,6 +6 @@\n-1. Call list_docs for the company. Pick the latest 사업보고서 for the asked year. If a [기재정정] version exists, use it, because it is the final figure.\n-2. Search that filing using a section title, not the question text: '요약재무정보', '연결 포괄손익계산서', or '매출실적' / '부문별 매출' for segment shares. Never repeat a query. If the results do not change, read the top hit's doc_id and offset.\n-3. Read the hit. Find the column for the asked year and the table's (단위: ...) line.\n-4. Upsert the raw cell immediately. Include its unit and keep △ as a minus sign.\n-5. Use compute for every conversion: 억원 = 백만원/100 = 천원/100000. Share % = segment / total * 100. Round as the question asks.\n-6. Answer with the computed number only.\n+1. list_docs for the company. If a [정정] or later-dated report for the same period exists, use the latest one. Do not use 잠정 or 예비 figures. 2. Read the 연결 손익계산서 (consolidated income statement), not the 별도 (standalone) one. Use the 당기 column for the asked fiscal year. 3. Copy the unit line (단위: 원/천원/백만원) that sits above the table. 4. Convert exactly once: 백만원÷100, 천원÷100000, 원÷100000000. Treat △ as minus. Round as asked. 5. Right after the compute, upsert one statement with the converted value, citing the S# span that shows both the figure and the unit. Then give the final answer. Never repeat the same compute.",
+  "evidence": "final accepted after the edit (before: none); deficiency 6 -> 0",
+  "tags": [
+   "consolidated",
+   "annual",
+   "final_figures"
+  ],
+  "task": "T01_net_eok",
+  "support": 1,
+  "id": "X001"
+ },
+ {
+  "situation": "Korean DART filing asks for a quarter-only (3-month) consolidated operating profit in 억원 from a half-year or quarterly report. The income statement gives both 3-month and cumulative columns in 천원, and the figure is a loss shown with parentheses or a minus sign. Before the edit, the agent stored the value without its sign or label, then looped on the same compute and never submitted a final answer.",
+  "lesson": "When pulling a figure from a DART income statement, record the line label, the period column (3-month vs cumulative) and the sign (parentheses or 손실 mean negative) in the upserted evidence. Convert 천원 to 억원 by dividing by 100,000, round as asked, and submit the final answer as soon as the compute succeeds instead of recomputing the same expression.",
+  "applied": [
+   "append 492 chars to domain/dart/domain.md",
+   "append 321 chars to domain/dart/tool_guidance.md"
+  ],
+  "ops": [
+   {
+    "op": "append_text",
+    "scope": "domain",
+    "file": "domain.md",
+    "content": "Period columns: 반기보고서/분기보고서 income statements show both a 3-month column (3개월) and a cumulative column (누적). For a single-quarter question (e.g. 2분기 4~6월), copy the 3-month column of the 당기 period, not 누적 and not 전기. Final basis: if list_docs shows a [정정] filing or a later filing for the same period, use it instead of the original or a preliminary (잠정) figure. Check the unit line of the same table before converting (천원 → 억원 divide by 100,000; 백만원 → 억원 divide by 100), then round as asked."
+   },
+   {
+    "op": "append_text",
+    "scope": "domain",
+    "file": "tool_guidance.md",
+    "content": "Order for DART figure questions: list_docs, check for [정정], read the table, confirm the period column and unit, upsert the value with unit, compute the conversion once, then finalize immediately with the rounded result citing that evidence. Never repeat an identical compute; a repeated result means it is time to answer."
+   }
+  ],
+  "diff": "--- a/domain/dart/domain.md\n+++ b/domain/dart/domain.md\n@@ -1,0 +2 @@\n+Period columns: 반기보고서/분기보고서 income statements show both a 3-month column (3개월) and a cumulative column (누적). For a single-quarter question (e.g. 2분기 4~6월), copy the 3-month column of the 당기 period, not 누적 and not 전기. Final basis: if list_docs shows a [정정] filing or a later filing for the same period, use it instead of the original or a preliminary (잠정) figure. Check the unit line of the same table before converting (천원 → 억원 divide by 100,000; 백만원 → 억원 divide by 100), then round as asked.\n--- a/domain/dart/tool_guidance.md\n+++ b/domain/dart/tool_guidance.md\n@@ -0,0 +1 @@\n+Order for DART figure questions: list_docs, check for [정정], read the table, confirm the period column and unit, upsert the value with unit, compute the conversion once, then finalize immediately with the rounded result citing that evidence. Never repeat an identical compute; a repeated result means it is time to answer.",
+  "evidence": "final accepted after the edit (before: none); deficiency 5 -> 0",
+  "tags": [
+   "quarter_3m",
+   "consolidated",
+   "final_figures"
+  ],
+  "task": "T08_q2_op_eok",
+  "support": 1,
+  "id": "X002"
+ },
+ {
+  "situation": "A Korean DART financial-figure question asks for the 'final confirmed' (최종 확정) consolidated amount in a stated unit. Several filings exist for the same fiscal year, including a correction ([기재정정]). Without guidance, the agent reads the original report once and then repeats identical searches for the corrected filing, never reading or recording anything.",
+  "lesson": "For DART figure questions, list the company's filings first, pick the latest correction for the target period, read the relevant section, and upsert the figure with its unit before converting units with compute. A final answer can only cite evidence ids that were already admitted, so record the figure before trying to finalize rather than retrying compute or final with an id that does not exist yet.",
+  "applied": [
+   "append 459 chars to domain/dart/tool_guidance.md",
+   "write skill domain/dart_figure_recipe (when: 매출액, 영업이익, 순이익, 비중, 억원, 연결)"
+  ],
+  "ops": [
+   {
+    "op": "append_text",
+    "scope": "domain",
+    "file": "tool_guidance.md",
+    "content": "DART navigation: to check for [기재정정]/[정정] versions or later filings, call list_docs once for the company. Do not search filing titles, because search matches body text, not titles. When you search a line item (영업이익, 매출액), filter by company and immediately read the returned doc_id+offset that belongs to the chosen filing. Never send the same search twice. If a search fails, read further into the chosen filing (offset +1400) to reach the 연결 손익계산서 or 요약재무정보."
+   },
+   {
+    "op": "write_skill",
+    "scope": "domain",
+    "name": "dart_figure_recipe",
+    "when": [
+     "매출액",
+     "영업이익",
+     "순이익",
+     "비중",
+     "억원",
+     "연결"
+    ],
+    "summary": "Fixed recipe to locate, extract and convert a consolidated figure from the latest final DART filing",
+    "content": "1. list_docs for the company. Pick the 사업보고서 for the asked fiscal year. If a [기재정정]/[정정] version of it exists, use the latest-dated one; otherwise the original is final. 2. search the line item with the company filter, then read the hit offset inside that doc. If there is no hit, read onward from the cover in steps until you reach the 연결 손익계산서. 3. upsert the figure with its label, the 당기 column, the sign (△ or () means negative), the unit line (단위) and the span ref. 4. compute the 억원 conversion from that ref (백만원/100, 천원/100000, 원/1e8) and round as asked. 5. finalize right after the compute succeeds."
+   }
+  ],
+  "diff": "--- a/domain/dart/skills/dart_figure_recipe.md\n+++ b/domain/dart/skills/dart_figure_recipe.md\n@@ -6,6 +6 @@\n-1. Call list_docs for the company. Pick the latest 사업보고서 for the asked year. If a [기재정정] version exists, use it, because it is the final figure.\n-2. Search that filing using a section title, not the question text: '요약재무정보', '연결 포괄손익계산서', or '매출실적' / '부문별 매출' for segment shares. Never repeat a query. If the results do not change, read the top hit's doc_id and offset.\n-3. Read the hit. Find the column for the asked year and the table's (단위: ...) line.\n-4. Upsert the raw cell immediately. Include its unit and keep △ as a minus sign.\n-5. Use compute for every conversion: 억원 = 백만원/100 = 천원/100000. Share % = segment / total * 100. Round as the question asks.\n-6. Answer with the computed number only.\n+1. list_docs for the company. Pick the 사업보고서 for the asked fiscal year. If a [기재정정]/[정정] version of it exists, use the latest-dated one; otherwise the original is final. 2. search the line item with the company filter, then read the hit offset inside that doc. If there is no hit, read onward from the cover in steps until you reach the 연결 손익계산서. 3. upsert the figure with its label, the 당기 column, the sign (△ or () means negative), the unit line (단위) and the span ref. 4. compute the 억원 conversion from that ref (백만원/100, 천원/100000, 원/1e8) and round as asked. 5. finalize right after the compute succeeds.\n--- a/domain/dart/tool_guidance.md\n+++ b/domain/dart/tool_guidance.md\n@@ -0,0 +1 @@\n+DART navigation: to check for [기재정정]/[정정] versions or later filings, call list_docs once for the company. Do not search filing titles, because search matches body text, not titles. When you search a line item (영업이익, 매출액), filter by company and immediately read the returned doc_id+offset that belongs to the chosen filing. Never send the same search twice. If a search fails, read further into the chosen filing (offset +1400) to reach the 연결 손익계산서 or 요약재무정보.",
+  "evidence": "final accepted after the edit (before: none); deficiency 16 -> 4",
+  "tags": [
+   "consolidated",
+   "annual",
+   "final_figures"
+  ],
+  "task": "T14_op_eok",
+  "support": 1,
+  "id": "X003"
+ },
+ {
+  "situation": "A DART-style filing question asks for one consolidated figure, such as net income, in a target unit like 억원 at a stated precision. The filing reports the figure in a different unit (e.g. 백만원). Without a recipe, the agent re-searched and re-read the same document. It then called compute on an evidence id it had never created, and it ran out of turns without a final answer.",
+  "lesson": "Once the consolidated statement row is found, first upsert the exact reported value and its unit as evidence, citing the read span. Then compute the unit conversion (백만원→억원 = ÷100) from that evidence id, and finalize with the requested precision. Never reference an evidence id in compute before upsert has admitted it, and stop searching once the figure has been read.",
+  "applied": [
+   "write skill domain/dart_figure_recipe (when: 매출액, 영업이익, 순이익, 비중, 억원, 연결)",
+   "append 233 chars to domain/dart/domain.md"
+  ],
+  "ops": [
+   {
+    "op": "write_skill",
+    "scope": "domain",
+    "name": "dart_figure_recipe",
+    "when": [
+     "매출액",
+     "영업이익",
+     "순이익",
+     "비중",
+     "억원",
+     "연결"
+    ],
+    "summary": "Fixed recipe to locate, extract and convert a consolidated figure from the latest final DART filing",
+    "content": "1. Call list_docs once for the company. Pick the latest filing for the target period, preferring [기재정정]/[정정] over the original report. Never search filing titles.\n2. search the line item (e.g. 당기순이익) with the company filter, then read that doc at the returned offset.\n3. As soon as a read span shows the line in the 연결 statement, upsert it immediately. Include the line label, the 당기 column, the unit line (단위: 백만원/천원/원) and the sign (△ or parentheses mean negative), with refs [S#]. Do not re-read the same range.\n4. compute the conversion using ONLY the E# id that upsert returned (백만원/100, 천원/100000, 원/100000000). Round as asked.\n5. Submit final right after the compute succeeds, citing that E#."
+   },
+   {
+    "op": "append_text",
+    "scope": "domain",
+    "file": "domain.md",
+    "content": " Consolidated net income (연결 당기순이익) is the total 당기순이익 line of the 연결 포괄손익계산서 (or 연결손익계산서), not the line attributable to 지배기업 소유주. 사업보고서 also repeats it in 요약재무정보. Either source is acceptable if it is marked 연결 and its unit is stated."
+   }
+  ],
+  "diff": "--- a/domain/dart/domain.md\n+++ b/domain/dart/domain.md\n@@ -1,0 +2 @@\n+Consolidated net income (연결 당기순이익) is the total 당기순이익 line of the 연결 포괄손익계산서 (or 연결손익계산서), not the line attributable to 지배기업 소유주. 사업보고서 also repeats it in 요약재무정보. Either source is acceptable if it is marked 연결 and its unit is stated.\n--- a/domain/dart/skills/dart_figure_recipe.md\n+++ b/domain/dart/skills/dart_figure_recipe.md\n@@ -6,6 +6,5 @@\n-1. Call list_docs for the company. Pick the latest 사업보고서 for the asked year. If a [기재정정] version exists, use it, because it is the final figure.\n-2. Search that filing using a section title, not the question text: '요약재무정보', '연결 포괄손익계산서', or '매출실적' / '부문별 매출' for segment shares. Never repeat a query. If the results do not change, read the top hit's doc_id and offset.\n-3. Read the hit. Find the column for the asked year and the table's (단위: ...) line.\n-4. Upsert the raw cell immediately. Include its unit and keep △ as a minus sign.\n-5. Use compute for every conversion: 억원 = 백만원/100 = 천원/100000. Share % = segment / total * 100. Round as the question asks.\n-6. Answer with the computed number only.\n+1. Call list_docs once for the company. Pick the latest filing for the target period, preferring [기재정정]/[정정] over the original report. Never search filing titles.\n+2. search the line item (e.g. 당기순이익) with the company filter, then read that doc at the returned offset.\n+3. As soon as a read span shows the line in the 연결 statement, upsert it immediately. Include the line label, the 당기 column, the unit line (단위: 백만원/천원/원) and the sign (△ or parentheses mean negative), with refs [S#]. Do not re-read the same range.\n+4. compute the conversion using ONLY the E# id that upsert returned (백만원/100, 천원/100000, 원/100000000). Round as asked.\n+5. Submit final right after the compute succeeds, citing that E#.",
+  "evidence": "final accepted after the edit (before: none); deficiency 12 -> 0",
+  "tags": [
+   "consolidated",
+   "annual",
+   "final_figures"
+  ],
+  "task": "T25_net_eok",
+  "support": 1,
+  "id": "X004"
+ },
+ {
+  "situation": "A growth-rate question needs two figures (current and prior year) from one filing. The agent read the right section but kept re-running the identical search instead of extracting both figures. It saved only one value and never computed or finalized.",
+  "lesson": "Block exact-repeat searches with a message telling the agent to read or extract from results it already has. Require derived answers to go through a compute step over recorded evidence. Together these push the agent to save both year values from passages already read, compute the ratio and finalize, instead of looping on search.",
+  "applied": [
+   "set general gate block_repeats=True",
+   "append 526 chars to general/system.md",
+   "set general gate require_compute_for_derived=True"
+  ],
+  "ops": [
+   {
+    "op": "set_gate",
+    "scope": "general",
+    "key": "block_repeats",
+    "value": "true"
+   },
+   {
+    "op": "append_text",
+    "scope": "general",
+    "file": "system.md",
+    "content": "Evidence discipline: right after any read that shows a needed value, upsert it (value + unit + period, citing that span) before doing anything else. Never repeat an identical search; if a search already pointed you to a document, read further offsets in it instead. For derived answers (growth %, ratio, difference), first list every input (e.g. current AND prior period from the same table) in unresolved, upsert each one, then compute from the evidence ids and finalize. Leave at least 3 turns for upsert, compute and final."
+   },
+   {
+    "op": "set_gate",
+    "scope": "general",
+    "key": "require_compute_for_derived",
+    "value": "true"
+   }
+  ],
+  "diff": "--- a/general/gates.json\n+++ b/general/gates.json\n@@ -6 +6,2 @@\n- \"require_compute_for_derived\": false\n+ \"require_compute_for_derived\": true,\n+ \"block_repeats\": true\n--- a/general/system.md\n+++ b/general/system.md\n@@ -15,0 +16 @@\n+Evidence discipline: right after any read that shows a needed value, upsert it (value + unit + period, citing that span) before doing anything else. Never repeat an identical search; if a search already pointed you to a document, read further offsets in it instead. For derived answers (growth %, ratio, difference), first list every input (e.g. current AND prior period from the same table) in unresolved, upsert each one, then compute from the evidence ids and finalize. Leave at least 3 turns for upsert, compute and final.",
+  "evidence": "final accepted after the edit (before: none); deficiency 13 -> 4",
+  "tags": [
+   "ratio_or_growth",
+   "consolidated",
+   "annual",
+   "final_figures"
+  ],
+  "task": "T26_rev_growth",
+  "support": 1,
+  "id": "X005"
+ },
+ {
+  "situation": "The agent has already found the right annual report but cannot pin down the consolidated income-statement figure. It keeps re-issuing the same search query and paging through the document chunk by chunk, never records evidence, and runs out of turns with no answer.",
+  "lesson": "Block exact-repeat searches and tell the agent to target the summary financial-data section, record the figure as evidence as soon as it is read, and then convert and finalize with that evidence cited. This turns a search loop into a short read-upsert-compute-final path. Truncating to the stated decimal place (rather than rounding) should be checked separately against the answer convention.",
+  "applied": [
+   "set general gate block_repeats=True",
+   "append 430 chars to general/system.md",
+   "set general config history_window=5"
+  ],
+  "ops": [
+   {
+    "op": "set_gate",
+    "scope": "general",
+    "key": "block_repeats",
+    "value": "true"
+   },
+   {
+    "op": "append_text",
+    "scope": "general",
+    "file": "system.md",
+    "content": "Evidence and coverage discipline: right after every read, upsert any value that bears on the question, citing that span, before taking another action. Keep a list of the doc_id offset ranges you have already read. If the needed item is still missing, read an unread range of the same document (its start, its end, or a gap). Do not repeat a search you already ran. Once the figure is upserted, compute if needed and then finalize."
+   },
+   {
+    "op": "set_config",
+    "scope": "general",
+    "key": "history_window",
+    "value": "5"
+   }
+  ],
+  "diff": "--- a/general/config.json\n+++ b/general/config.json\n@@ -7 +7 @@\n- \"history_window\": 3,\n+ \"history_window\": 5,\n--- a/general/gates.json\n+++ b/general/gates.json\n@@ -6 +6,2 @@\n- \"require_compute_for_derived\": false\n+ \"require_compute_for_derived\": false,\n+ \"block_repeats\": true\n--- a/general/system.md\n+++ b/general/system.md\n@@ -15,0 +16 @@\n+Evidence and coverage discipline: right after every read, upsert any value that bears on the question, citing that span, before taking another action. Keep a list of the doc_id offset ranges you have already read. If the needed item is still missing, read an unread range of the same document (its start, its end, or a gap). Do not repeat a search you already ran. Once the figure is upserted, compute if needed and then finalize.",
+  "evidence": "final accepted after the edit (before: none); deficiency 10 -> 1",
+  "tags": [
+   "consolidated",
+   "annual",
+   "final_figures"
+  ],
+  "task": "T28_op_eok",
+  "support": 1,
+  "id": "X006"
+ }
+]

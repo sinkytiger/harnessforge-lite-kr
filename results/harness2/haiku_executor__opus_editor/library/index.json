@@ -1,0 +1,145 @@
+[
+ {
+  "situation": "A DART financial-figure question asks for the final confirmed value. The agent has already read and cited a figure from the most recent correction filing (기재정정 사업보고서) that it found in the filing list. Without guidance it keeps running redundant list_docs and searches to re-confirm that no later correction exists, even though the filing list already showed which correction filing is latest.",
+  "lesson": "When the latest correction filing in the list has been read and the value comes from it, treat the correction check as satisfied and finalize instead of re-listing or re-searching. A domain note plus a correction_check gate that states this condition explicitly cut the turns roughly in half with the same answer.",
+  "applied": [
+   "append 429 chars to domain/dart/domain.md",
+   "set domain gate correction_check=True"
+  ],
+  "ops": [
+   {
+    "op": "append_text",
+    "scope": "domain",
+    "file": "domain.md",
+    "content": "Final-filing rule: from ONE list_docs call, take the filings for the asked 사업연도 and period. The final confirmed source is the latest-submitted one ([기재정정] or [정정] beats the original; 잠정/preliminary disclosures never count). If a correction filing shows 정정 전/정정 후, use 정정 후. Once you have read a value from the latest-dated filing, do not re-run list_docs or search for further corrections; compute the unit conversion and answer."
+   },
+   {
+    "op": "set_gate",
+    "scope": "domain",
+    "key": "correction_check",
+    "value": "true"
+   }
+  ],
+  "diff": "--- a/domain/dart/domain.md\n+++ b/domain/dart/domain.md\n@@ -2,0 +3 @@\n+Final-filing rule: from ONE list_docs call, take the filings for the asked 사업연도 and period. The final confirmed source is the latest-submitted one ([기재정정] or [정정] beats the original; 잠정/preliminary disclosures never count). If a correction filing shows 정정 전/정정 후, use 정정 후. Once you have read a value from the latest-dated filing, do not re-run list_docs or search for further corrections; compute the unit conversion and answer.\n--- a/domain/dart/gates.json\n+++ b/domain/dart/gates.json\n@@ -2 +2 @@\n- \"correction_check\": false,\n+ \"correction_check\": true,",
+  "evidence": "same answer with 39169 -> 21497 tokens",
+  "tags": [
+   "consolidated",
+   "annual",
+   "final_figures"
+  ],
+  "task": "T13_net_eok",
+  "support": 1,
+  "id": "X001"
+ },
+ {
+  "situation": "A DART filing question asks for a consolidated, cumulative-period figure from the final confirmed disclosure. A single filing contains both the parent-only (separate) statement and the consolidated statement. In the earlier run the agent read the separate statement first, recorded it, then had to re-search, re-read and re-check for corrections. It also repeated list_docs calls that brought nothing new.",
+  "lesson": "For consolidated cumulative-period questions, search and read the consolidated income statement section directly. Check the filing list once for any amended (정정) filing, and do not re-list or re-search after the right figure is admitted. Blocking repeated calls and folding the correction check into the first filing-list review halves the turns without changing the answer.",
+  "applied": [
+   "set general gate block_repeats=True",
+   "append 458 chars to general/system.md",
+   "append 575 chars to domain/dart/domain.md",
+   "set domain gate correction_check=True"
+  ],
+  "ops": [
+   {
+    "op": "set_gate",
+    "scope": "general",
+    "key": "block_repeats",
+    "value": "true"
+   },
+   {
+    "op": "append_text",
+    "scope": "general",
+    "file": "system.md",
+    "content": "Discipline: never repeat an action whose result you already have (same list_docs, same search); reuse the earlier result from your notes. Before upserting a number, check that the table's heading matches EVERY qualifier in the question (entity, basis such as consolidated/separate, period, cumulative vs. quarter, unit). If any qualifier does not match, do not upsert; find the right table. When an unresolved item is settled or no longer matters, remove it."
+   },
+   {
+    "op": "append_text",
+    "scope": "domain",
+    "file": "domain.md",
+    "content": "Final-filing rule: call list_docs ONCE. From it, pick the filings for the asked 사업연도 and period. The final confirmed source is the latest-submitted one: [기재정정] or [정정] beats the original, and 잠정 (preliminary) disclosures never count. If a correction exists for that period, read it. If the list shows none, the original is final, so do not re-list or re-search. Basis rule: before upserting, confirm the statement title says 연결 (not 별도) when the question asks 연결. Take the cumulative column (누적, e.g. 1~6월), not the 3-month column. Name the basis and period in the statement."
+   },
+   {
+    "op": "set_gate",
+    "scope": "domain",
+    "key": "correction_check",
+    "value": "true"
+   }
+  ],
+  "diff": "--- a/domain/dart/domain.md\n+++ b/domain/dart/domain.md\n@@ -2,0 +3 @@\n+Final-filing rule: call list_docs ONCE. From it, pick the filings for the asked 사업연도 and period. The final confirmed source is the latest-submitted one: [기재정정] or [정정] beats the original, and 잠정 (preliminary) disclosures never count. If a correction exists for that period, read it. If the list shows none, the original is final, so do not re-list or re-search. Basis rule: before upserting, confirm the statement title says 연결 (not 별도) when the question asks 연결. Take the cumulative column (누적, e.g. 1~6월), not the 3-month column. Name the basis and period in the statement.\n--- a/domain/dart/gates.json\n+++ b/domain/dart/gates.json\n@@ -2 +2 @@\n- \"correction_check\": false,\n+ \"correction_check\": true,\n--- a/general/gates.json\n+++ b/general/gates.json\n@@ -6 +6,2 @@\n- \"require_compute_for_derived\": false\n+ \"require_compute_for_derived\": false,\n+ \"block_repeats\": true\n--- a/general/system.md\n+++ b/general/system.md\n@@ -15,0 +16 @@\n+Discipline: never repeat an action whose result you already have (same list_docs, same search); reuse the earlier result from your notes. Before upserting a number, check that the table's heading matches EVERY qualifier in the question (entity, basis such as consolidated/separate, period, cumulative vs. quarter, unit). If any qualifier does not match, do not upsert; find the right table. When an unresolved item is settled or no longer matters, remove it.",
+  "evidence": "same answer with 49499 -> 28325 tokens",
+  "tags": [
+   "cumulative",
+   "consolidated",
+   "final_figures"
+  ],
+  "task": "T18_h1_rev_eok",
+  "support": 1,
+  "id": "X002"
+ },
+ {
+  "situation": "Year-over-year growth questions on DART filings where both the current and prior-year figures are needed. The agent would otherwise read two separate annual reports, one per year. The latest annual report's comparative statement already shows the prior period (전기) alongside the current period (당기).",
+  "lesson": "When computing YoY change from a final annual filing, take both the current-period and prior-period values from the same latest report's comparative financial statement. That way the prior figure reflects any restatement, and it saves extra searches and reads. Keep the guidance in the domain notes and make the correction check a gate, so the agent uses the most recent filing's comparatives rather than the original prior-year report.",
+  "applied": [
+   "append 490 chars to domain/dart/domain.md",
+   "set domain gate correction_check=True"
+  ],
+  "ops": [
+   {
+    "op": "append_text",
+    "scope": "domain",
+    "file": "domain.md",
+    "content": "Growth-rate rule: for YoY change, take BOTH years from the same final filing for the asked year: the current column (당기, 제N기) and the prior column (전기, 제N-1기) of one statement. The prior column reflects restatements, so do not pull the prior year from the older report. Final-filing rule: from ONE list_docs call, pick the latest-submitted report for the asked 사업연도. [기재정정]/[정정] beats the original, and 잠정 disclosures never count. State in a note which filing is final, then do not re-list."
+   },
+   {
+    "op": "set_gate",
+    "scope": "domain",
+    "key": "correction_check",
+    "value": "true"
+   }
+  ],
+  "diff": "--- a/domain/dart/domain.md\n+++ b/domain/dart/domain.md\n@@ -2,0 +3 @@\n+Growth-rate rule: for YoY change, take BOTH years from the same final filing for the asked year: the current column (당기, 제N기) and the prior column (전기, 제N-1기) of one statement. The prior column reflects restatements, so do not pull the prior year from the older report. Final-filing rule: from ONE list_docs call, pick the latest-submitted report for the asked 사업연도. [기재정정]/[정정] beats the original, and 잠정 disclosures never count. State in a note which filing is final, then do not re-list.\n--- a/domain/dart/gates.json\n+++ b/domain/dart/gates.json\n@@ -2 +2 @@\n- \"correction_check\": false,\n+ \"correction_check\": true,",
+  "evidence": "same answer with 45026 -> 26681 tokens",
+  "tags": [
+   "ratio_or_growth",
+   "consolidated",
+   "annual",
+   "final_figures"
+  ],
+  "task": "T26_rev_growth",
+  "support": 1,
+  "id": "X003"
+ },
+ {
+  "situation": "A DART financial-figure question asking for the final confirmed filing value, where the company's filing list includes an amended ([기재정정]) annual report alongside the original, and the agent must pick the authoritative document and locate the consolidated net income line.",
+  "lesson": "Domain guidance that tells the agent to go straight to the latest amended report for 'final confirmed' questions, plus a correction check gate, lets it read the summary consolidated financials in one targeted read instead of paging sequentially. It gets the same correct answer in fewer turns and tokens. Keep the gate, but judge it on efficiency, since correctness was already achieved without it.",
+  "applied": [
+   "append 487 chars to domain/dart/domain.md",
+   "set domain gate correction_check=True"
+  ],
+  "ops": [
+   {
+    "op": "append_text",
+    "scope": "domain",
+    "file": "domain.md",
+    "content": "Final-filing rule: use ONE list_docs call. Among filings for the asked 사업연도/period, the latest-submitted wins ([기재정정]/[정정] beats the original; 잠정 never counts). Once a value is admitted from that filing, the correction check is satisfied: mark it resolved and finalize. Do not re-list or re-search. Statement basis: for 연결 당기순이익, take the total 당기순이익(손실) line of the consolidated statement (연결손익계산서 or 요약연결재무정보 of the same final filing), not the 지배기업 소유주지분 line and not the 별도 statement."
+   },
+   {
+    "op": "set_gate",
+    "scope": "domain",
+    "key": "correction_check",
+    "value": "true"
+   }
+  ],
+  "diff": "--- a/domain/dart/domain.md\n+++ b/domain/dart/domain.md\n@@ -2,0 +3 @@\n+Final-filing rule: use ONE list_docs call. Among filings for the asked 사업연도/period, the latest-submitted wins ([기재정정]/[정정] beats the original; 잠정 never counts). Once a value is admitted from that filing, the correction check is satisfied: mark it resolved and finalize. Do not re-list or re-search. Statement basis: for 연결 당기순이익, take the total 당기순이익(손실) line of the consolidated statement (연결손익계산서 or 요약연결재무정보 of the same final filing), not the 지배기업 소유주지분 line and not the 별도 statement.\n--- a/domain/dart/gates.json\n+++ b/domain/dart/gates.json\n@@ -2 +2 @@\n- \"correction_check\": false,\n+ \"correction_check\": true,",
+  "evidence": "same answer with 34303 -> 22660 tokens",
+  "tags": [
+   "consolidated",
+   "annual",
+   "final_figures"
+  ],
+  "task": "T34_net_eok",
+  "support": 1,
+  "id": "X004"
+ }
+]
