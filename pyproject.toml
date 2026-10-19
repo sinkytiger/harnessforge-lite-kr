@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harnessforge-lite-kr"
+version = "0.1.0"
+description = "A self-evolving long-document research agent: LongHarness state + Harmony multi-objective search + Harness^2 verifier-free refinement, on a synthetic Korean DART-style corpus"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+claude = ["anthropic>=1.12"]
+
+[project.scripts]
+harnessforge = "harnessforge.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["harnessforge*"]
+
+[tool.setuptools.package-data]
+harnessforge = ["harness_seed/**/*.md", "harness_seed/**/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

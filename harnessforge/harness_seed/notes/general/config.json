@@ -1,0 +1,10 @@
+{
+ "state_mode": "notes",
+ "max_turns": 16,
+ "search_k": 4,
+ "snippet_chars": 160,
+ "read_chars": 1400,
+ "history_window": 3,
+ "max_skills": 4,
+ "thought_chars": 320
+}

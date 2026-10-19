@@ -1,0 +1,7 @@
+{
+ "numeric_answer": true,
+ "require_refs": true,
+ "cite_active_only": true,
+ "value_in_source": false,
+ "require_compute_for_derived": false
+}
