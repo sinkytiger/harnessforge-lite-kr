@@ -18,7 +18,7 @@ from collections import Counter
 
 from ..calc import CalcError, evaluate, names_in
 from ..retrieval import Index
-from ..scoring import parse_number
+from ..scoring import is_abstain, parse_number
 from .state import ConclusionState, Evidence, EvidenceBank, SourceRegistry
 
 GENERAL_GATES = {
@@ -104,6 +104,10 @@ class ResearchEnv:
     @property
     def expects_number(self) -> bool:
         return "숫자만" in self.question_text
+
+    @property
+    def allows_abstain(self) -> bool:
+        return "알 수 없음" in self.question_text
 
     @property
     def derived(self) -> bool:
@@ -329,6 +333,14 @@ class ResearchEnv:
         refs = [str(r).strip().upper() for r in _as_list(a.get("refs")) if str(r).strip()]
         if not answer:
             raise ValueError("final needs 'answer'")
+        if self.allows_abstain and is_abstain(answer):
+            # "cannot be determined from the filings" needs no evidence ids
+            self.done = True
+            self.final_answer = answer
+            self.final_refs = refs
+            self.signals["final_accepted"] += 1
+            self.signals["abstained"] += 1
+            return f"final accepted: {answer}"
         if self.gates.get("numeric_answer") and self.expects_number and parse_number(answer) is None:
             return self._reject("numeric_answer", "the question asks for a number only")
         if self.mode == "longharness":
@@ -350,7 +362,7 @@ class ResearchEnv:
                     return self._reject("correction_check",
                                         f"{doc_id} was replaced by {c['doc_id']} 「{c['report']} | 제출 {c['filed']}」; "
                                         "read the corrected filing and revise the evidence")
-                if self.gates.get("preliminary_check") and d["kind"] == "prelim":
+                if self.gates.get("preliminary_check") and d["kind"] in ("prelim", "prelim_correction"):
                     return self._reject("preliminary_check",
                                         f"{doc_id} is a preliminary (잠정) disclosure; use the audited report")
         self.done = True

@@ -69,7 +69,7 @@ class Corpus:
 
     # -- fact lookup
     def is_valid_source(self, doc: dict) -> bool:
-        return doc["kind"] != "prelim" and not doc.get("corrected_by")
+        return doc["kind"] not in ("prelim", "prelim_correction", "rename") and not doc.get("corrected_by")
 
     def occurrences(self, key: tuple) -> list[dict]:
         return self._facts_by_key.get(tuple(key), [])

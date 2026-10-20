@@ -48,6 +48,16 @@ def evaluate(expr: str, env: dict[str, float] | None = None) -> float:
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
             v = ev(node.operand)
             return -v if isinstance(node.op, ast.USub) else v
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+            # roots and small powers only (e.g. CAGR uses ** 0.5); the exponent may not use names
+            if any(isinstance(n, ast.Name) for n in ast.walk(node.right)):
+                raise CalcError("the exponent must be a constant")
+            base, exp = ev(node.left), ev(node.right)
+            if abs(exp) > 4:
+                raise CalcError("exponent too large")
+            if base < 0 and not float(exp).is_integer():
+                raise CalcError("fractional power of a negative number")
+            return base ** exp
         if isinstance(node, ast.BinOp) and type(node.op) in _ALLOWED_BINOPS:
             a, b = ev(node.left), ev(node.right)
             if isinstance(node.op, ast.Div) and b == 0:

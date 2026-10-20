@@ -58,6 +58,10 @@ is DART filings. The corpus is synthetic so that every gold answer and every tra
 * An oracle policy replays each gold computation through the same tools; the test suite and CI check that
   all 51 questions are answerable within the budget, with every gate on.
 
+A second, larger set (v2: three splits, unanswerable questions, more filing types) and a small set built
+from real DART filings are described in [benchmark_v2.md](benchmark_v2.md). Abstention is scored there:
+an abstaining final answer needs no evidence ids, but only for questions that offer "알 수 없음".
+
 ## Deviations from the papers
 
 | Paper feature | Here | Why |

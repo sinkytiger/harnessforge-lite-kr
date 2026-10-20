@@ -152,6 +152,8 @@ class OraclePolicy:
 
     def _facts(self) -> list[tuple[int, dict]]:
         calc = self.q["calc"]
+        if calc.get("abstain"):
+            return []
         if "compare" in calc:
             out, i = [], 0
             for item in calc["compare"]:
@@ -163,6 +165,10 @@ class OraclePolicy:
 
     def act(self, question: dict, instance, env: ResearchEnv, history: list[dict]):
         u = Usage()
+        if self.q["calc"].get("abstain"):
+            if not env.search_log:
+                return {"action": "search", "query": self.q["companies"][0] + " 매출액"}, u, ""
+            return {"action": "final", "answer": "알 수 없음", "refs": []}, u, ""
         if not self._built:
             self._built = True
             first = self._facts()[0][1]
@@ -182,13 +188,23 @@ class OraclePolicy:
             if not covering:
                 self.plan.insert(0, step)
                 return {"action": "read", "doc_id": f["doc_id"], "offset": f["line_start"]}, u, ""
-            sid = covering[-1].sid
-            eid = f"E{len(env.bank.entries) + 1}"
-            self.fact_eids[i] = eid
-            key = f["key"]
-            return {"action": "upsert", "statements": [{"text": f"{key[1]} {key[2]} {key[3]}", "refs": [sid],
-                                                         "value": f["printed"], "unit": f["unit"]}],
-                    "unresolved": ["none"]}, u, ""
+            span = covering[-1]
+            # admit every pending fact printed on this page in one upsert (the tool takes up to 4)
+            batch = [(i, f)]
+            while self.plan and len(batch) < 4 and isinstance(self.plan[0], tuple) and self.plan[0][0] == "read_and_upsert":
+                _, j, g = self.plan[0]
+                if g["doc_id"] == span.doc_id and span.start <= g["offset"] < span.end - 1:
+                    batch.append((j, g))
+                    self.plan.pop(0)
+                else:
+                    break
+            statements = []
+            for n, (j, g) in enumerate(batch):
+                self.fact_eids[j] = f"E{len(env.bank.entries) + 1 + n}"
+                key = g["key"]
+                statements.append({"text": f"{key[1]} {key[2]} {key[3]}", "refs": [span.sid],
+                                   "value": g["printed"], "unit": g["unit"]})
+            return {"action": "upsert", "statements": statements, "unresolved": ["none"]}, u, ""
         calc = self.q["calc"]
         if "compare" in calc:
             done = [c for c in env.computes]
@@ -200,7 +216,8 @@ class OraclePolicy:
                 self.plan.insert(0, ("compute_and_final",))
                 return {"action": "compute", "expression": expr}, u, ""
             vals = [c["value"] for c in done[-len(items):]]
-            best = items[max(range(len(items)), key=lambda k: vals[k])]["name"]
+            ranked = sorted(range(len(items)), key=lambda k: -vals[k])
+            best = items[ranked[1] if calc.get("pick") == "second" else ranked[0]]["name"]
             return {"action": "final", "answer": best, "refs": list(self.fact_eids.values())}, u, ""
         if not env.computes:
             self.plan.insert(0, ("compute_and_final",))

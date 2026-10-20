@@ -47,7 +47,8 @@ def test_score_entity(corpus):
 def test_calc_is_safe():
     assert evaluate("(E1 - E2) / E2 * 100", {"E1": 110, "E2": 100}) == pytest.approx(10)
     assert evaluate("1,234 / 2") == pytest.approx(617)
-    for bad in ("__import__('os')", "E1 ** 2", "abs(-1)", "E9 + 1"):
+    assert evaluate("(E1 / E2) ** 0.5", {"E1": 121, "E2": 100}) == pytest.approx(1.1)
+    for bad in ("__import__('os')", "E1 ** E1", "2 ** 10", "(-8) ** 0.5", "abs(-1)", "E9 + 1"):
         with pytest.raises(CalcError):
             evaluate(bad, {"E1": 1})
 

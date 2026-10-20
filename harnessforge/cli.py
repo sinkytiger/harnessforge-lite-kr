@@ -15,10 +15,24 @@ from .retrieval import Index
 from .runtime import OraclePolicy, run_direct, run_episode
 
 
+BENCH_SEED = {"v1": 7, "v2": 21}
+
+
 def _corpus(args) -> Corpus:
+    bench = getattr(args, "bench", "v1")
+    if bench == "real":
+        from .corpus.dart_real import load_real
+        try:
+            return load_real(getattr(args, "corpus", None) or "data/dart_real")
+        except FileNotFoundError as exc:
+            raise SystemExit(str(exc)) from None
     if getattr(args, "corpus", None) and Path(args.corpus).exists():
         return Corpus.load(args.corpus)
-    return build_corpus(getattr(args, "seed", 7))
+    seed = BENCH_SEED[bench] if getattr(args, "seed", None) is None else args.seed
+    if bench == "v2":
+        from .corpus.v2 import build_corpus_v2
+        return build_corpus_v2(seed)
+    return build_corpus(seed)
 
 
 def _harness(spec: str) -> Harness:
@@ -27,8 +41,15 @@ def _harness(spec: str) -> Harness:
     return Harness.load(spec)
 
 
+def _split(args) -> str:
+    if args.split:
+        return args.split
+    return "real" if getattr(args, "bench", "v1") == "real" else "test"
+
+
 def _questions(corpus: Corpus, args) -> list[dict]:
-    qs = corpus.split(args.split) if args.split != "all" else list(corpus.questions)
+    split = _split(args)
+    qs = corpus.split(split) if split != "all" else list(corpus.questions)
     if getattr(args, "only", None):
         qs = [q for q in qs if any(q["qid"].startswith(o) for o in args.only)]
     if getattr(args, "limit", None):
@@ -46,10 +67,23 @@ def _out(path: str, config: dict) -> Path:
 
 
 def cmd_build(args) -> int:
-    c = build_corpus(args.seed)
+    c = _corpus(args)
     out = c.save(args.out)
-    print(f"corpus seed={args.seed}: {c.meta['n_docs']} filings, {c.meta['n_chars']:,} chars, "
-          f"{len(c.questions)} questions ({len(c.split('search'))} search / {len(c.split('test'))} test) -> {out}")
+    splits = " / ".join(f"{len(c.split(s))} {s}" for s in ("search", "validation", "test") if c.split(s))
+    print(f"corpus {args.bench} seed={c.meta['seed']}: {c.meta['n_docs']} filings, {c.meta['n_chars']:,} chars, "
+          f"{len(c.questions)} questions ({splits}) -> {out}")
+    return 0
+
+
+def cmd_build_real(args) -> int:
+    from .corpus.dart_real import DartError, build_real
+    try:
+        c = build_real(args.out)
+    except DartError as exc:
+        print(f"FAILED: {exc}")
+        return 1
+    print(f"real DART set: {c.meta['n_docs']} filings, {c.meta['n_chars']:,} chars, {len(c.questions)} questions, "
+          f"sha {c.meta['sha256_16']} -> {args.out}")
     return 0
 
 
@@ -71,7 +105,8 @@ def cmd_validate(args) -> int:
                 bad += 1
                 print(f"  FAIL {q['qid']}: {t['score']} {t['summary']['gate_rejections']}")
         print(f"oracle with {'all gates on' if all_gates else 'seed gates'}: {ok}/{len(c.questions)} solved")
-    print(f"corpus {c.meta['n_docs']} filings, {c.meta['n_chars']:,} chars, sha {c.meta['sha256_16']}")
+    print(f"corpus {c.meta.get('version', 'v1')} {c.meta['n_docs']} filings, {c.meta['n_chars']:,} chars, "
+          f"sha {c.meta['sha256_16']}")
     return 1 if bad else 0
 
 
@@ -81,7 +116,7 @@ def cmd_run(args) -> int:
     qs = _questions(c, args)
     scopes = tuple(args.scopes)
     out = _out(args.out, {"label": args.label or Path(args.out).name, "harness": args.harness, "model": args.model,
-                          "seeds": args.seeds, "split": args.split, "scopes": list(scopes)})
+                          "seeds": args.seeds, "bench": args.bench, "split": _split(args), "scopes": list(scopes)})
     runs = out / "runs"
     runs.mkdir(exist_ok=True)
     h = None if args.harness == "direct" else _harness(args.harness)
@@ -115,7 +150,7 @@ def cmd_run(args) -> int:
             n += 1
             n_ok += t["score"]["correct"]
             print(f"[{n}] {q['qid']} s{seed}: {'OK' if t['score']['correct'] else 'x '} ans={t['summary']['answer']!r} "
-                  f"gold={q['gold'] if q['answer_type'] == 'entity' else round(q['gold'], 2)} "
+                  f"gold={round(q['gold'], 2) if q['answer_type'] == 'number' else q['gold']} "
                   f"turns={t['summary']['turns']} tok={t['usage']['total_tokens']} {t['seconds']:.0f}s", flush=True)
     print(f"accuracy {n_ok}/{n} = {n_ok / max(n, 1):.1%} in {time.time() - t0:.0f}s")
     return 0
@@ -204,9 +239,12 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def common(sp, model=True):
+        sp.add_argument("--bench", default="v1", choices=["v1", "v2", "real"],
+                        help="v1: 51 questions; v2: 173 questions in three splits; real: FY2025 DART filings (build-real first)")
         sp.add_argument("--corpus", help="saved corpus directory (default: build from --seed in memory)")
-        sp.add_argument("--seed", type=int, default=7, help="corpus seed")
-        sp.add_argument("--split", default="test", choices=["search", "test", "all"])
+        sp.add_argument("--seed", type=int, help="corpus seed (default 7 for v1, 21 for v2)")
+        sp.add_argument("--split", choices=["search", "validation", "test", "real", "all"],
+                        help="default: test (real for --bench real)")
         sp.add_argument("--only", nargs="*", help="question id prefixes")
         sp.add_argument("--limit", type=int)
         if model:
@@ -218,9 +256,14 @@ def main(argv: list[str] | None = None) -> int:
                             help="reasoning effort when the executor is a Claude model")
 
     sp = sub.add_parser("build", help="generate the synthetic corpus")
-    sp.add_argument("--seed", type=int, default=7)
+    sp.add_argument("--bench", default="v1", choices=["v1", "v2"])
+    sp.add_argument("--seed", type=int)
     sp.add_argument("--out", default="data/corpus")
     sp.set_defaults(fn=cmd_build)
+
+    sp = sub.add_parser("build-real", help="fetch FY2025 annual reports from DART (needs DART_API_KEY)")
+    sp.add_argument("--out", default="data/dart_real")
+    sp.set_defaults(fn=cmd_build_real)
 
     sp = sub.add_parser("validate", help="replay the gold computation of every question through the tools")
     common(sp, model=False)

@@ -164,7 +164,7 @@ def run_digest(traj: dict, question: dict | None = None, with_gold: bool = False
                  f"; answer={sig['answer']!r}; turns={sig['turns']}; tokens={sig['tokens']}"]
     if with_gold and question is not None:
         sc = traj["score"]
-        gold = question["gold"] if question["answer_type"] == "entity" else f"{question['gold']:.2f}"
+        gold = f"{question['gold']:.2f}" if question["answer_type"] == "number" else question["gold"]
         out.append(f"  gold={gold}; correct={sc['correct']}" + (f"; matched trap '{sc['trap']}'" if sc.get("trap") else ""))
     probs = {k: v for k, v in (("gate_rejections", sig["gate_rejections"]), ("invalid_actions", sig["invalid_actions"]),
                                ("repeated_searches", sig["repeated_searches"]), ("repeated_reads", sig["repeated_reads"]),

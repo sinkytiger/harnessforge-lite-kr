@@ -1,6 +1,9 @@
 """CLI wiring with fake models (no network)."""
 
+import argparse
 import json
+
+import pytest
 
 from harnessforge import cli
 from harnessforge.llm import FakeLLM
@@ -41,3 +44,12 @@ def test_run_evolve_refine_report(monkeypatch, tmp_path, capsys):
     assert len(recs) == 2 and all("cost" in r for r in recs)
     assert cli.main(["report", "--runs", str(out), "--records", str(rf / "records.jsonl")]) == 0
     assert "Accuracy" in capsys.readouterr().out
+
+
+def test_bench_option_selects_the_question_set(tmp_path, capsys):
+    assert cli.main(["build", "--bench", "v2", "--out", str(tmp_path / "v2")]) == 0
+    assert "46 search / 35 validation / 92 test" in capsys.readouterr().out
+    assert json.loads((tmp_path / "v2" / "meta.json").read_text(encoding="utf-8"))["sha256_16"] == "2fb66f1bd2fb5823"
+    assert cli._split(argparse.Namespace(bench="real", split=None)) == "real"
+    with pytest.raises(SystemExit, match="build-real"):
+        cli.main(["validate", "--bench", "real", "--corpus", str(tmp_path / "missing")])
